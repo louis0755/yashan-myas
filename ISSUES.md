@@ -105,3 +105,5 @@
 - 需求：默认采用生成配置；仅 `--recommend-memory` 启用推荐内存；`--memory-size SIZE` 按指定 M/G 绝对值写入。
 - 状态：`FIXED`
 - 修复版本：`0.2.2`
+- 补充错误：默认非推荐模式的 TOML 无 `memory_limit`，C-005 报 `missing memory_limit in [[host]]`。
+- 最终修复版本：`0.2.3`，字段不存在时在对应 section 内插入。
