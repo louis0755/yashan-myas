@@ -107,3 +107,11 @@
 - 修复版本：`0.2.2`
 - 补充错误：默认非推荐模式的 TOML 无 `memory_limit`，C-005 报 `missing memory_limit in [[host]]`。
 - 最终修复版本：`0.2.3`，字段不存在时在对应 section 内插入。
+
+## MYAS-016 — 组合发布包包含 yinstall 运行日志
+
+- 发现：2026-08-10
+- 错误信息：`myas-0.2.3/yinstall/logs/yinstall-*.log` 被列入 tar 包。
+- 影响：发布包混入机器运行产物，存在泄露环境信息的风险。
+- 状态：`FIXED`
+- 修复版本：`0.2.4`，打包时排除两个项目的 `logs` 和 `dist`。
