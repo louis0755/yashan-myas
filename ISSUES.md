@@ -123,7 +123,8 @@
 - 发现：2026-08-10
 - 错误信息：实例列表的 `MYSQL` 固定显示 `No`，`myas create` 无 MySQL 模式和端口参数。
 - 需求：支持 MySQL 模式、独立 MySQL 端口、元数据和环境变量，并完成安装与清除验证。
-- 状态：`IN PROGRESS`
+- 状态：`FIXED`
+- 修复版本：`0.3.1`
 - 补充错误：`YAS-00021 failed to get parameter item by name, parameter "MYSQL_ADDR" does not exist`。
 - 原因：错误地向 `[group.node.mysql_config]` 插入 `mysql_addr`，正确字段位于 `[[group.node]]`。
 
@@ -132,4 +133,13 @@
 - 发现：2026-08-10
 - 问题：`--recommend-memory` 和 `MEMORY_LIMIT` 增加了与绝对内存并存的第二套配置模型。
 - 需求：删除推荐内存参数和百分比配置，只保留 `MEMORY_SIZE` 与 `--memory-size SIZE`。
-- 状态：`IN PROGRESS`
+- 状态：`FIXED`
+- 修复版本：`0.3.0`
+
+## MYAS-019 — 目标机旧 MySQL 客户端缺少 SHA-256 认证插件
+
+- 发现：2026-08-10
+- 错误信息：`Authentication plugin 'sha256_password' cannot be loaded`。
+- 环境：目标机仅安装 MariaDB 5.5，且无 PyMySQL、mysql-connector 或 MySQLdb。
+- 影响：已确认 3311 监听及 MySQL 协议握手，但旧客户端不能完成 `SYS` 用户 SHA-256 认证。
+- 状态：`ENVIRONMENT LIMITATION`
