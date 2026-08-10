@@ -143,3 +143,11 @@
 - 环境：目标机仅安装 MariaDB 5.5，且无 PyMySQL、mysql-connector 或 MySQLdb。
 - 影响：已确认 3311 监听及 MySQL 协议握手，但旧客户端不能完成 `SYS` 用户 SHA-256 认证。
 - 状态：`ENVIRONMENT LIMITATION`
+
+## MYAS-020 — 列表状态未反映数据库实时运行状态
+
+- 发现：2026-08-10
+- 错误信息：`myas` 对正在运行的 `ys1903` 仍显示 `INSTALLED`。
+- 原因：列表直接显示实例登记状态，没有参考 `ysdb` 按数据目录匹配 yasdb 进程。
+- 需求：统一显示 `FAIL`、`INSTALLED`、`RUNNING`、`NOT RUN`，并保留 `CURRENT` 表示当前 Shell 环境。
+- 状态：`IN PROGRESS`

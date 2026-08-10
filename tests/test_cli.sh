@@ -8,6 +8,7 @@ CONFIG_DIR="${TMP_DIR}/config"
 PACKAGE_DIR="${TMP_DIR}/packages"
 MARKER="${TMP_DIR}/marker"
 FAKE_YINSTALL="${TMP_DIR}/yinstall.sh"
+FAKE_PS="${TMP_DIR}/ps"
 PATH_BIN="${TMP_DIR}/path-bin"
 PATH_CONFIG_DIR="${TMP_DIR}/path-config"
 BUNDLED_CONFIG_DIR="${TMP_DIR}/bundled-config"
@@ -33,6 +34,8 @@ printf '%s\n' \
 	'printf "%s\n" "#!/usr/bin/env bash" "printf '\''yasboot:%s\\n'\'' \"\$*\" >>\"\${MYAS_TEST_MARKER}\"" >"${stage_dir}/bin/yasboot"' \
 	'chmod +x "${stage_dir}/bin/yasboot"' >"${FAKE_YINSTALL}"
 chmod +x "${FAKE_YINSTALL}"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"${FAKE_PS}"
+chmod +x "${FAKE_PS}"
 mkdir -p -- "${YINSTALL_CONFIG_DIR}" "${PATH_BIN}"
 cp -- "${FAKE_YINSTALL}" "${YINSTALL_CONFIG_DIR}/yinstall.sh"
 cp -- "${FAKE_YINSTALL}" "${PATH_BIN}/yinstall"
@@ -94,12 +97,21 @@ assert_contains '--force' "${MARKER}"
 assert_contains '--memory-size 1G' "${MARKER}"
 run_myas create mysqldb 23.4.14.100 --db-port 1815 --mysql-port 3310
 assert_contains '--mode mysql --mysql-port 3310' "${MARKER}"
+run_myas create planneddb 23.4.14.100 --db-port 1819 --dry-run
 
 run_myas >"${TMP_DIR}/list"
 assert_contains 'PORT' "${TMP_DIR}/list"
 assert_contains 'ys1703' "${TMP_DIR}/list"
 assert_contains 'appdb' "${TMP_DIR}/list"
 assert_contains 'Yes (3310)' "${TMP_DIR}/list"
+grep -E 'ys1703.*INSTALLED' "${TMP_DIR}/list" >/dev/null
+grep -E 'ys1819.*NOT RUN' "${TMP_DIR}/list" >/dev/null
+
+printf '%s\n' '#!/usr/bin/env bash' \
+	"printf '%s\\n' '${TMP_DIR}/instances/ys1703/yasdb-home/23.4.14.100/bin/yasdb nomount -D ${TMP_DIR}/instances/ys1703/yasdb-data/db-1-1'" >"${FAKE_PS}"
+env MYAS_CONFIG_DIR="${CONFIG_DIR}" MYAS_TEST_MARKER="${MARKER}" MYAS_PS_BIN="${FAKE_PS}" YASHANDB_CLUSTER=ys1703 \
+	"${ROOT_DIR}/myas.sh" list >"${TMP_DIR}/running-list"
+grep -E 'ys1703.*RUNNING.*\*' "${TMP_DIR}/running-list" >/dev/null
 assert_contains $'appdb\t23.4.14.100\tys1703\t1703\t1701\t1702\t1704' "${CONFIG_DIR}/instances.tsv"
 assert_contains $'localdb\t23.4.14.100\tys1803\t1803\t1801\t1802\t1804\tlocal' "${CONFIG_DIR}/instances.tsv"
 assert_contains $'nextdb\t23.4.14.100\tys1807\t1807\t1805\t1806\t1808\tlocal' "${CONFIG_DIR}/instances.tsv"
@@ -151,5 +163,7 @@ assert_failure env MYAS_CONFIG_DIR="${CONFIG_DIR}" MYAS_TEST_MARKER="${MARKER}" 
 	create failed 23.4.14.100 --target 10.0.0.11 --db-port 1903
 assert_contains $'failed\t23.4.14.100\tys1903\t1903\t1901\t1902\t1904' "${CONFIG_DIR}/instances.tsv"
 assert_contains $'\tFAILED\t' "${CONFIG_DIR}/instances.tsv"
+run_myas list >"${TMP_DIR}/failed-list"
+grep -E 'ys1903.*FAIL' "${TMP_DIR}/failed-list" >/dev/null
 
 echo "test_cli.sh: passed"

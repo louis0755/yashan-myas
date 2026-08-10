@@ -1,7 +1,34 @@
 #!/usr/bin/env bash
 
+instance_is_running() {
+	local data_path=${1%/}/ ps_bin=${MYAS_PS_BIN:-ps}
+	"${ps_bin}" -eo args= 2>/dev/null | awk -v data_path="${data_path}" '
+		{
+			for (i = 1; i <= NF - 3; i++) {
+				if ($i ~ /(^|\/)yasdb$/ && $(i + 1) ~ /^(open|mount|nomount)$/ && $(i + 2) == "-D" && index($(i + 3), data_path) == 1) {
+					found = 1
+				}
+			}
+		}
+		END { exit(found ? 0 : 1) }
+	'
+}
+
+instance_display_status() {
+	local stored_status=$1 data_path=$2
+	if [[ ${stored_status} == FAILED ]]; then
+		printf 'FAIL'
+	elif instance_is_running "${data_path}"; then
+		printf 'RUNNING'
+	elif [[ ${stored_status} == INSTALLED || ${stored_status} == RUNNING || ${stored_status} == STOPPED ]]; then
+		printf 'INSTALLED'
+	else
+		printf 'NOT RUN'
+	fi
+}
+
 list_instances() {
-	local current_cluster=${YASHANDB_CLUSTER:-} remarks current mysql_display
+	local current_cluster=${YASHANDB_CLUSTER:-} remarks current mysql_display display_status
 	printf '%-16s %-14s %-8s %-12s %-12s %-20s %s\n' NAME VERSION PORT MYSQL STATUS REMARKS CURRENT
 	while IFS=$'\t' read -r name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port || [[ -n ${name} ]]; do
 		[[ -z ${name} || ${name} == \#* ]] && continue
@@ -11,17 +38,20 @@ list_instances() {
 		[[ -n ${remarks} ]] || remarks=${name}
 		mysql_display="No"
 		[[ -z ${mysql_port} ]] || mysql_display="Yes (${mysql_port})"
-		printf '%-16s %-14s %-8s %-12s %-12s %-20s %s\n' "${cluster}" "${version}" "${db_port}" "${mysql_display}" "${status}" "${remarks}" "${current}"
+		display_status=$(instance_display_status "${status}" "${data_path}")
+		printf '%-16s %-14s %-8s %-12s %-12s %-20s %s\n' "${cluster}" "${version}" "${db_port}" "${mysql_display}" "${display_status}" "${remarks}" "${current}"
 	done <"${INSTANCES_FILE}"
 }
 
 show_instance() {
 	load_instance "$1" || die "unknown instance or cluster: $1"
+	local display_status
+	display_status=$(instance_display_status "${INSTANCE_STATUS}" "${INSTANCE_DATA_PATH}")
 	printf 'Name:          %s\n' "${INSTANCE_NAME}"
 	printf 'Version:       %s\n' "${INSTANCE_VERSION}"
 	printf 'Cluster:       %s\n' "${INSTANCE_CLUSTER}"
 	printf 'Target:        %s\n' "${INSTANCE_TARGET}"
-	printf 'Status:        %s\n' "${INSTANCE_STATUS}"
+	printf 'Status:        %s\n' "${display_status}"
 	printf 'Yasom port:    %s\n' "${INSTANCE_YASOM_PORT}"
 	printf 'Yasagent port: %s\n' "${INSTANCE_YASAGENT_PORT}"
 	printf 'YashanDB port: %s\n' "${INSTANCE_DB_PORT}"
