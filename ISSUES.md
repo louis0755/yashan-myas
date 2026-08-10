@@ -150,4 +150,6 @@
 - 错误信息：`myas` 对正在运行的 `ys1903` 仍显示 `INSTALLED`。
 - 原因：列表直接显示实例登记状态，没有参考 `ysdb` 按数据目录匹配 yasdb 进程。
 - 需求：统一显示 `FAIL`、`INSTALLED`、`RUNNING`、`NOT RUN`，并保留 `CURRENT` 表示当前 Shell 环境。
-- 状态：`IN PROGRESS`
+- 状态：`FIXED`
+- 修复版本：`0.3.2`
+- 验证：目标机运行中的 `ys1903` 在有无当前环境标记时均显示 `RUNNING`，`CURRENT` 仅随环境选择变化。
