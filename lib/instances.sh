@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 
 list_instances() {
-	local current_cluster=${YASHANDB_CLUSTER:-} remarks current
+	local current_cluster=${YASHANDB_CLUSTER:-} remarks current mysql_display
 	printf '%-16s %-14s %-8s %-12s %-12s %-20s %s\n' NAME VERSION PORT MYSQL STATUS REMARKS CURRENT
-	while IFS=$'\t' read -r name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks || [[ -n ${name} ]]; do
+	while IFS=$'\t' read -r name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port || [[ -n ${name} ]]; do
 		[[ -z ${name} || ${name} == \#* ]] && continue
 		current=""
 		[[ ${cluster} == "${current_cluster}" ]] && current='*'
+		[[ ${remarks} != __MYAS_EMPTY__ ]] || remarks=""
 		[[ -n ${remarks} ]] || remarks=${name}
-		printf '%-16s %-14s %-8s %-12s %-12s %-20s %s\n' "${cluster}" "${version}" "${db_port}" "No" "${status}" "${remarks}" "${current}"
+		mysql_display="No"
+		[[ -z ${mysql_port} ]] || mysql_display="Yes (${mysql_port})"
+		printf '%-16s %-14s %-8s %-12s %-12s %-20s %s\n' "${cluster}" "${version}" "${db_port}" "${mysql_display}" "${status}" "${remarks}" "${current}"
 	done <"${INSTANCES_FILE}"
 }
 
@@ -23,6 +26,7 @@ show_instance() {
 	printf 'Yasagent port: %s\n' "${INSTANCE_YASAGENT_PORT}"
 	printf 'YashanDB port: %s\n' "${INSTANCE_DB_PORT}"
 	printf 'Replicat port: %s\n' "${INSTANCE_REPLICAT_PORT}"
+	[[ -z ${INSTANCE_MYSQL_PORT} ]] || printf 'MySQL port:    %s\n' "${INSTANCE_MYSQL_PORT}"
 	printf 'Install path:  %s\n' "${INSTANCE_INSTALL_PATH}"
 	printf 'Data path:     %s\n' "${INSTANCE_DATA_PATH}"
 	printf 'Log path:      %s\n' "${INSTANCE_LOG_PATH}"
@@ -49,6 +53,7 @@ emit_environment() {
 	printf 'export YASHANDB_YASAGENT_PORT=%q\n' "${INSTANCE_YASAGENT_PORT}"
 	printf 'export YASHANDB_PORT=%q\n' "${INSTANCE_DB_PORT}"
 	printf 'export YASHANDB_REPLICAT_PORT=%q\n' "${INSTANCE_REPLICAT_PORT}"
+	[[ -z ${INSTANCE_MYSQL_PORT} ]] || printf 'export YASHANDB_MYSQL_PORT=%q\n' "${INSTANCE_MYSQL_PORT}"
 	printf 'export YASHANDB_HOME=%q\n' "${INSTANCE_INSTALL_PATH}"
 	printf 'export YASHANDB_DATA=%q\n' "${INSTANCE_DATA_PATH}"
 	printf 'export YASHANDB_LOG=%q\n' "${INSTANCE_LOG_PATH}"
@@ -80,7 +85,7 @@ create_instance() {
 	local name=$1 version=$2
 	shift 2
 	local target="" db_port="" package="" remarks="" memory_size="${MEMORY_SIZE}" precheck=false dry_run=false force=false local_mode=true local_explicit=false
-	local recommend_memory=false memory_size_explicit=false
+	local mysql_mode=false mysql_port=""
 	while (($#)); do
 		case "$1" in
 		--target)
@@ -101,8 +106,9 @@ create_instance() {
 		--precheck) precheck=true; shift ;;
 		--dry-run) dry_run=true; shift ;;
 		--force) force=true; shift ;;
-		--memory-size) memory_size=${2:?missing value for $1}; memory_size_explicit=true; shift 2 ;;
-		--recommend-memory) recommend_memory=true; shift ;;
+		--memory-size) memory_size=${2:?missing value for $1}; shift 2 ;;
+		--mysql) mysql_mode=true; shift ;;
+		--mysql-port) mysql_mode=true; mysql_port=${2:?missing value for $1}; shift 2 ;;
 		*) die "unknown create option: $1" ;;
 		esac
 	done
@@ -121,8 +127,10 @@ create_instance() {
 	is_port "${db_port}" && ((db_port >= 3 && db_port <= 65534)) || die "--db-port must allow two lower and one higher port"
 	is_safe_field "${remarks}" || die "remarks cannot contain tabs or newlines"
 	[[ -z ${memory_size} || ${memory_size} =~ ^[1-9][0-9]*([MmGg])?$ ]] || die "--memory-size must be an integer with optional M or G suffix"
-	[[ ${recommend_memory} == false || ${memory_size_explicit} == false ]] || die "--recommend-memory cannot be combined with --memory-size"
-	[[ ${recommend_memory} == false ]] || memory_size=""
+	if [[ ${mysql_mode} == true ]]; then
+		[[ -n ${mysql_port} ]] || mysql_port=$(next_available_mysql_port)
+		is_port "${mysql_port}" || die "--mysql-port must be a valid port"
+	fi
 
 	local cluster="${CLUSTER_PREFIX}${db_port}"
 	local db_basedir="${BASE_DIR}/${cluster}"
@@ -137,7 +145,7 @@ create_instance() {
 	fi
 	load_instance "${name}" && die "instance already exists: ${name}"
 	load_instance "${cluster}" && die "cluster already exists: ${cluster}"
-	port_group_available "${db_port}" || die "port group conflicts with an existing instance"
+	port_group_available "${db_port}" "${mysql_port}" || die "port group conflicts with an existing instance"
 
 	INSTANCE_NAME=${name}
 	INSTANCE_VERSION=${version}
@@ -146,6 +154,7 @@ create_instance() {
 	INSTANCE_YASOM_PORT=$((db_port - 2))
 	INSTANCE_YASAGENT_PORT=$((db_port - 1))
 	INSTANCE_REPLICAT_PORT=$((db_port + 1))
+	INSTANCE_MYSQL_PORT=${mysql_port}
 	INSTANCE_TARGET=${target}
 	INSTANCE_INSTALL_PATH="${db_basedir}/yasdb-home"
 	INSTANCE_DATA_PATH="${db_basedir}/yasdb-data"
@@ -161,9 +170,9 @@ create_instance() {
 		--cluster "${cluster}" --db-port "${db_port}" --install-path "${INSTANCE_INSTALL_PATH}"
 		--data-path "${INSTANCE_DATA_PATH}" --log-path "${INSTANCE_LOG_PATH}" --stage-dir "${INSTANCE_STAGE_DIR}"
 		--os-user "${OS_USER}" --os-group "${OS_GROUP}"
-		--memory-limit "${MEMORY_LIMIT}" --log-dir "${MYAS_LOG_DIR}/${cluster}")
+		--log-dir "${MYAS_LOG_DIR}/${cluster}")
 	[[ -z ${memory_size} ]] || command+=(--memory-size "${memory_size}")
-	[[ ${recommend_memory} == true ]] && command+=(--recommend-memory)
+	[[ ${mysql_mode} == false ]] || command+=(--mode mysql --mysql-port "${mysql_port}")
 	if [[ ${local_mode} == true ]]; then
 		command+=(--local)
 	else

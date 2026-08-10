@@ -31,10 +31,11 @@ Create options:
   --dry-run            Ask yinstall to print planned mutation
   --force              Allow cleanup of stale managed installation files
   --memory-size SIZE   Memory target for this deployment; integer M(default) or G
-  --recommend-memory   Let yasboot calculate memory from MEMORY_LIMIT
+  --mysql              Enable MySQL protocol using the next available port
+  --mysql-port PORT    Enable MySQL protocol on an explicit port
 
 Global settings: BASE_DIR, CLUSTER_PREFIX, PACKAGE_DIR, ARCH, YINSTALL_BIN,
-SSH_USER, SSH_PORT, YASOM_PORT_START, SYS_PASSWORD, OS_USER, OS_GROUP, MEMORY_LIMIT, MEMORY_SIZE.
+SSH_USER, SSH_PORT, YASOM_PORT_START, MYSQL_PORT_START, SYS_PASSWORD, OS_USER, OS_GROUP, MEMORY_SIZE.
 EOF
 }
 
@@ -48,10 +49,10 @@ show_config() {
 	printf 'SSH_USER=%s\n' "${SSH_USER}"
 	printf 'SSH_PORT=%s\n' "${SSH_PORT}"
 	printf 'YASOM_PORT_START=%s\n' "${YASOM_PORT_START}"
+	printf 'MYSQL_PORT_START=%s\n' "${MYSQL_PORT_START}"
 	printf 'SYS_PASSWORD=********\n'
 	printf 'OS_USER=%s\n' "${OS_USER}"
 	printf 'OS_GROUP=%s\n' "${OS_GROUP}"
-	printf 'MEMORY_LIMIT=%s\n' "${MEMORY_LIMIT}"
 	printf 'MEMORY_SIZE=%s\n' "${MEMORY_SIZE}"
 }
 

@@ -63,13 +63,25 @@ run_myas config show | grep -F 'YINSTALL_BIN=' >/dev/null
 env MYAS_CONFIG_DIR="${PATH_CONFIG_DIR}" MYAS_TEST_MARKER="${MARKER}" PATH="${PATH_BIN}:${PATH}" \
 	"${ROOT_DIR}/myas.sh" config show | grep -F "YINSTALL_BIN=${PATH_BIN}/yinstall" >/dev/null
 env MYAS_CONFIG_DIR="${BUNDLED_CONFIG_DIR}" MYAS_TEST_MARKER="${MARKER}" \
-	"${ROOT_DIR}/myas.sh" config show | grep -F 'YINSTALL_BIN=' >/dev/null
+		"${ROOT_DIR}/myas.sh" config show | grep -F 'YINSTALL_BIN=' >/dev/null
+printf '%s\n' 'MEMORY_LIMIT=50' >>"${CONFIG_DIR}/settings.conf"
+if run_myas config show | grep -F 'MEMORY_LIMIT=' >/dev/null; then
+	echo 'deprecated MEMORY_LIMIT is still visible' >&2
+	exit 1
+fi
+if grep -F 'MEMORY_LIMIT=' "${CONFIG_DIR}/settings.conf" >/dev/null; then
+	echo 'deprecated MEMORY_LIMIT was not removed from settings' >&2
+	exit 1
+fi
+assert_failure run_myas config set MEMORY_LIMIT 50
+assert_failure run_myas create invalidrecommend 23.4.14.100 --recommend-memory
 run_myas config set SYS_PASSWORD TestInitial-2026 >/dev/null
 run_myas config set BASE_DIR "${TMP_DIR}/instances" >/dev/null
 run_myas config set PACKAGE_DIR "${PACKAGE_DIR}" >/dev/null
 run_myas config set YINSTALL_BIN "${FAKE_YINSTALL}" >/dev/null
 run_myas config show | grep -F 'SSH_USER=yashan' >/dev/null
 run_myas config show | grep -F 'YASOM_PORT_START=1701' >/dev/null
+run_myas config show | grep -F 'MYSQL_PORT_START=3307' >/dev/null
 run_myas config show | grep -F 'SYS_PASSWORD=********' >/dev/null
 [[ $(stat -c '%a' "${CONFIG_DIR}/settings.conf") == 600 ]]
 run_myas create appdb 23.4.14.100 --target 10.0.0.11 --db-port 1703
@@ -80,17 +92,19 @@ run_myas create nextdb 23.4.14.100
 run_myas create forcedb 23.4.14.100 --db-port 1811 --force --memory-size 1G
 assert_contains '--force' "${MARKER}"
 assert_contains '--memory-size 1G' "${MARKER}"
-run_myas create recommenddb 23.4.14.100 --db-port 1815 --recommend-memory
-assert_contains '--recommend-memory' "${MARKER}"
-assert_failure run_myas create invalidmemory 23.4.14.100 --db-port 1819 --recommend-memory --memory-size 2G
+run_myas create mysqldb 23.4.14.100 --db-port 1815 --mysql-port 3310
+assert_contains '--mode mysql --mysql-port 3310' "${MARKER}"
 
 run_myas >"${TMP_DIR}/list"
 assert_contains 'PORT' "${TMP_DIR}/list"
 assert_contains 'ys1703' "${TMP_DIR}/list"
 assert_contains 'appdb' "${TMP_DIR}/list"
+assert_contains 'Yes (3310)' "${TMP_DIR}/list"
 assert_contains $'appdb\t23.4.14.100\tys1703\t1703\t1701\t1702\t1704' "${CONFIG_DIR}/instances.tsv"
 assert_contains $'localdb\t23.4.14.100\tys1803\t1803\t1801\t1802\t1804\tlocal' "${CONFIG_DIR}/instances.tsv"
 assert_contains $'nextdb\t23.4.14.100\tys1807\t1807\t1805\t1806\t1808\tlocal' "${CONFIG_DIR}/instances.tsv"
+assert_contains $'mysqldb\t23.4.14.100\tys1815\t1815\t1813\t1814\t1816\tlocal' "${CONFIG_DIR}/instances.tsv"
+grep -F $'\tINSTALLED\t__MYAS_EMPTY__\t3310' "${CONFIG_DIR}/instances.tsv" >/dev/null
 assert_contains $'\tINSTALLED\t' "${CONFIG_DIR}/instances.tsv"
 assert_contains 'db install --package' "${MARKER}"
 assert_contains '--local' "${MARKER}"
@@ -98,6 +112,7 @@ assert_contains '--db-admin-password TestInitial-2026' "${MARKER}"
 assert_contains '--db-admin-password LocalPass-2026' "${MARKER}"
 run_myas env ys1703 >"${TMP_DIR}/environment"
 assert_contains 'export YASHANDB_CLUSTER=ys1703' "${TMP_DIR}/environment"
+run_myas env ys1815 | grep -F 'export YASHANDB_MYSQL_PORT=3310' >/dev/null
 assert_contains "export YASHANDB_HOME=${TMP_DIR}/instances/ys1703/yasdb-home" "${TMP_DIR}/environment"
 env MYAS_CONFIG_DIR="${CONFIG_DIR}" MYAS_TEST_MARKER="${MARKER}" bash -c '
   source <("$1" env ys1703)

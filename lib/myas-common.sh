@@ -51,16 +51,16 @@ set_default_settings() {
 	SSH_USER="yashan"
 	SSH_PORT="22"
 	YASOM_PORT_START="1701"
+	MYSQL_PORT_START="3307"
 	SYS_PASSWORD="__MYAS_SYS_PASSWORD__"
 	OS_USER="yashan"
 	OS_GROUP="yashan"
-	MEMORY_LIMIT="50"
 	MEMORY_SIZE=""
 }
 
 is_setting_key() {
 	case "$1" in
-	BASE_DIR | CLUSTER_PREFIX | PACKAGE_DIR | ARCH | YINSTALL_BIN | SSH_USER | SSH_PORT | YASOM_PORT_START | SYS_PASSWORD | OS_USER | OS_GROUP | MEMORY_LIMIT | MEMORY_SIZE) return 0 ;;
+	BASE_DIR | CLUSTER_PREFIX | PACKAGE_DIR | ARCH | YINSTALL_BIN | SSH_USER | SSH_PORT | YASOM_PORT_START | MYSQL_PORT_START | SYS_PASSWORD | OS_USER | OS_GROUP | MEMORY_SIZE) return 0 ;;
 	*) return 1 ;;
 	esac
 }
@@ -76,10 +76,10 @@ write_default_settings() {
 		'SSH_USER=yashan' \
 		'SSH_PORT=22' \
 		'YASOM_PORT_START=1701' \
+		'MYSQL_PORT_START=3307' \
 		'SYS_PASSWORD=__MYAS_SYS_PASSWORD__' \
 		'OS_USER=yashan' \
-		'OS_GROUP=yashan' \
-		'MEMORY_LIMIT=50' >"${SETTINGS_FILE}"
+		'OS_GROUP=yashan' >"${SETTINGS_FILE}"
 	printf '%s\n' 'MEMORY_SIZE=' >>"${SETTINGS_FILE}"
 }
 
@@ -88,9 +88,15 @@ ensure_storage() {
 	if [[ ! -f ${SETTINGS_FILE} ]]; then
 		write_default_settings
 	fi
+	if grep -q '^MEMORY_LIMIT=' "${SETTINGS_FILE}"; then
+		local settings_temp
+		settings_temp=$(mktemp "${MYAS_CONFIG_DIR}/settings.XXXXXX")
+		awk '$0 !~ /^MEMORY_LIMIT=/' "${SETTINGS_FILE}" >"${settings_temp}"
+		mv -- "${settings_temp}" "${SETTINGS_FILE}"
+	fi
 	chmod 600 -- "${SETTINGS_FILE}"
 	if [[ ! -f ${INSTANCES_FILE} ]]; then
-		printf '%s\n' '# name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks' >"${INSTANCES_FILE}"
+		printf '%s\n' '# name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port' >"${INSTANCES_FILE}"
 	fi
 }
 
@@ -110,10 +116,10 @@ load_settings() {
 		SSH_USER) SSH_USER=${value} ;;
 		SSH_PORT) SSH_PORT=${value} ;;
 		YASOM_PORT_START) YASOM_PORT_START=${value} ;;
+		MYSQL_PORT_START) MYSQL_PORT_START=${value} ;;
 		SYS_PASSWORD) [[ -z ${value} ]] || SYS_PASSWORD=${value} ;;
 		OS_USER) OS_USER=${value} ;;
 		OS_GROUP) OS_GROUP=${value} ;;
-		MEMORY_LIMIT) MEMORY_LIMIT=${value} ;;
 		MEMORY_SIZE) MEMORY_SIZE=${value} ;;
 		esac
 	done <"${SETTINGS_FILE}"
@@ -123,11 +129,11 @@ load_settings() {
 	is_absolute_path "${PACKAGE_DIR}" || die "PACKAGE_DIR must be an absolute safe path"
 	is_port "${SSH_PORT}" || die "SSH_PORT must be a valid port"
 	is_port "${YASOM_PORT_START}" && ((YASOM_PORT_START <= 65532)) || die "YASOM_PORT_START must allow three higher ports"
+	is_port "${MYSQL_PORT_START}" || die "MYSQL_PORT_START must be a valid port"
 	[[ -n ${SYS_PASSWORD} ]] || die "SYS_PASSWORD must not be empty"
 	is_identifier "${SSH_USER}" || die "SSH_USER must be an identifier"
 	is_identifier "${OS_USER}" || die "OS_USER must be an identifier"
 	is_identifier "${OS_GROUP}" || die "OS_GROUP must be an identifier"
-	[[ ${MEMORY_LIMIT} =~ ^[0-9]+$ ]] && ((MEMORY_LIMIT >= 1 && MEMORY_LIMIT <= 100)) || die "MEMORY_LIMIT must be 1-100"
 	[[ -z ${MEMORY_SIZE} || ${MEMORY_SIZE} =~ ^[1-9][0-9]*([MmGg])?$ ]] || die "MEMORY_SIZE must be an integer with optional M or G suffix"
 }
 
@@ -153,6 +159,7 @@ reset_instance() {
 	INSTANCE_YASOM_PORT=""
 	INSTANCE_YASAGENT_PORT=""
 	INSTANCE_REPLICAT_PORT=""
+	INSTANCE_MYSQL_PORT=""
 	INSTANCE_TARGET=""
 	INSTANCE_INSTALL_PATH=""
 	INSTANCE_DATA_PATH=""
@@ -164,9 +171,9 @@ reset_instance() {
 }
 
 load_instance() {
-	local query=$1 name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks
+	local query=$1 name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port
 	reset_instance
-	while IFS=$'\t' read -r name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks || [[ -n ${name} ]]; do
+	while IFS=$'\t' read -r name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port || [[ -n ${name} ]]; do
 		[[ -z ${name} || ${name} == \#* ]] && continue
 		if [[ ${name} == "${query}" || ${cluster} == "${query}" ]]; then
 			INSTANCE_NAME=${name}
@@ -176,6 +183,7 @@ load_instance() {
 			INSTANCE_YASOM_PORT=${yasom_port}
 			INSTANCE_YASAGENT_PORT=${yasagent_port}
 			INSTANCE_REPLICAT_PORT=${replicat_port}
+			INSTANCE_MYSQL_PORT=${mysql_port}
 			INSTANCE_TARGET=${target}
 			INSTANCE_INSTALL_PATH=${install_path}
 			INSTANCE_DATA_PATH=${data_path}
@@ -184,6 +192,7 @@ load_instance() {
 			INSTANCE_PACKAGE=${package}
 			INSTANCE_STATUS=${status}
 			INSTANCE_REMARKS=${remarks}
+			[[ ${INSTANCE_REMARKS} != __MYAS_EMPTY__ ]] || INSTANCE_REMARKS=""
 			return 0
 		fi
 	done <"${INSTANCES_FILE}"
@@ -191,11 +200,11 @@ load_instance() {
 }
 
 append_instance() {
-	printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+	printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
 		"${INSTANCE_NAME}" "${INSTANCE_VERSION}" "${INSTANCE_CLUSTER}" "${INSTANCE_DB_PORT}" \
 		"${INSTANCE_YASOM_PORT}" "${INSTANCE_YASAGENT_PORT}" "${INSTANCE_REPLICAT_PORT}" \
 		"${INSTANCE_TARGET}" "${INSTANCE_INSTALL_PATH}" "${INSTANCE_DATA_PATH}" "${INSTANCE_LOG_PATH}" \
-		"${INSTANCE_STAGE_DIR}" "${INSTANCE_PACKAGE}" "${INSTANCE_STATUS}" "${INSTANCE_REMARKS}" >>"${INSTANCES_FILE}"
+		"${INSTANCE_STAGE_DIR}" "${INSTANCE_PACKAGE}" "${INSTANCE_STATUS}" "${INSTANCE_REMARKS:-__MYAS_EMPTY__}" "${INSTANCE_MYSQL_PORT}" >>"${INSTANCES_FILE}"
 }
 
 update_instance_status() {
@@ -203,11 +212,11 @@ update_instance_status() {
 	temp_file=$(mktemp "${MYAS_CONFIG_DIR}/instances.XXXXXX")
 	while IFS= read -r name || [[ -n ${name} ]]; do
 		if [[ ${name} == "${INSTANCE_NAME}"$'\t'* ]]; then
-			printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+			printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
 				"${INSTANCE_NAME}" "${INSTANCE_VERSION}" "${INSTANCE_CLUSTER}" "${INSTANCE_DB_PORT}" \
 				"${INSTANCE_YASOM_PORT}" "${INSTANCE_YASAGENT_PORT}" "${INSTANCE_REPLICAT_PORT}" \
 				"${INSTANCE_TARGET}" "${INSTANCE_INSTALL_PATH}" "${INSTANCE_DATA_PATH}" "${INSTANCE_LOG_PATH}" \
-				"${INSTANCE_STAGE_DIR}" "${INSTANCE_PACKAGE}" "${status}" "${INSTANCE_REMARKS}" >>"${temp_file}"
+				"${INSTANCE_STAGE_DIR}" "${INSTANCE_PACKAGE}" "${status}" "${INSTANCE_REMARKS:-__MYAS_EMPTY__}" "${INSTANCE_MYSQL_PORT}" >>"${temp_file}"
 		else
 			printf '%s\n' "${name}" >>"${temp_file}"
 		fi
@@ -217,15 +226,38 @@ update_instance_status() {
 }
 
 port_group_available() {
-	local db_port=$1 yasom_port=$((db_port - 2)) yasagent_port=$((db_port - 1)) replicat_port=$((db_port + 1))
-	local name version cluster existing_db existing_yasom existing_yasagent existing_replicat rest
+	local db_port=$1 mysql_port=${2:-} yasom_port=$((db_port - 2)) yasagent_port=$((db_port - 1)) replicat_port=$((db_port + 1))
+	local name version cluster existing_db existing_yasom existing_yasagent existing_replicat target install_path data_path log_path stage_dir package status remarks existing_mysql
 	local candidate_port existing_port
-	while IFS=$'\t' read -r name version cluster existing_db existing_yasom existing_yasagent existing_replicat rest || [[ -n ${name} ]]; do
+	while IFS=$'\t' read -r name version cluster existing_db existing_yasom existing_yasagent existing_replicat target install_path data_path log_path stage_dir package status remarks existing_mysql || [[ -n ${name} ]]; do
 		[[ -z ${name} || ${name} == \#* ]] && continue
-		for candidate_port in "${yasom_port}" "${yasagent_port}" "${db_port}" "${replicat_port}"; do
-			for existing_port in "${existing_yasom}" "${existing_yasagent}" "${existing_db}" "${existing_replicat}"; do
+		for candidate_port in "${yasom_port}" "${yasagent_port}" "${db_port}" "${replicat_port}" ${mysql_port:+"${mysql_port}"}; do
+			for existing_port in "${existing_yasom}" "${existing_yasagent}" "${existing_db}" "${existing_replicat}" ${existing_mysql:+"${existing_mysql}"}; do
 				[[ ${candidate_port} != "${existing_port}" ]] || return 1
 			done
+		done
+	done <"${INSTANCES_FILE}"
+	return 0
+}
+
+next_available_mysql_port() {
+	local candidate=${MYSQL_PORT_START}
+	while ((candidate <= 65535)); do
+		if managed_port_available "${candidate}"; then
+			printf '%s' "${candidate}"
+			return 0
+		fi
+		candidate=$((candidate + 1))
+	done
+	die "no available MySQL port remains"
+}
+
+managed_port_available() {
+	local candidate=$1 name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port existing_port
+	while IFS=$'\t' read -r name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port || [[ -n ${name} ]]; do
+		[[ -z ${name} || ${name} == \#* ]] && continue
+		for existing_port in "${yasom_port}" "${yasagent_port}" "${db_port}" "${replicat_port}" ${mysql_port:+"${mysql_port}"}; do
+			[[ ${candidate} != "${existing_port}" ]] || return 1
 		done
 	done <"${INSTANCES_FILE}"
 	return 0

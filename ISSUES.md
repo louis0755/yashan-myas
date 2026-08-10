@@ -117,3 +117,17 @@
 - 影响：发布包混入机器运行产物，存在泄露环境信息的风险。
 - 状态：`FIXED`
 - 修复版本：`0.2.4`，打包时排除两个项目的 `logs` 和 `dist`。
+
+## MYAS-017 — 列表显示 MySQL 但无法创建 MySQL 模式实例
+
+- 发现：2026-08-10
+- 错误信息：实例列表的 `MYSQL` 固定显示 `No`，`myas create` 无 MySQL 模式和端口参数。
+- 需求：支持 MySQL 模式、独立 MySQL 端口、元数据和环境变量，并完成安装与清除验证。
+- 状态：`IN PROGRESS`
+
+## MYAS-018 — 删除推荐内存与百分比配置
+
+- 发现：2026-08-10
+- 问题：`--recommend-memory` 和 `MEMORY_LIMIT` 增加了与绝对内存并存的第二套配置模型。
+- 需求：删除推荐内存参数和百分比配置，只保留 `MEMORY_SIZE` 与 `--memory-size SIZE`。
+- 状态：`IN PROGRESS`
