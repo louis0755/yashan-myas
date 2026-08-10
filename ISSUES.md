@@ -124,6 +124,8 @@
 - 错误信息：实例列表的 `MYSQL` 固定显示 `No`，`myas create` 无 MySQL 模式和端口参数。
 - 需求：支持 MySQL 模式、独立 MySQL 端口、元数据和环境变量，并完成安装与清除验证。
 - 状态：`IN PROGRESS`
+- 补充错误：`YAS-00021 failed to get parameter item by name, parameter "MYSQL_ADDR" does not exist`。
+- 原因：错误地向 `[group.node.mysql_config]` 插入 `mysql_addr`，正确字段位于 `[[group.node]]`。
 
 ## MYAS-018 — 删除推荐内存与百分比配置
 
