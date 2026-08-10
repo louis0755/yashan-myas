@@ -80,6 +80,7 @@ create_instance() {
 	local name=$1 version=$2
 	shift 2
 	local target="" db_port="" package="" remarks="" memory_size="${MEMORY_SIZE}" precheck=false dry_run=false force=false local_mode=true local_explicit=false
+	local recommend_memory=false memory_size_explicit=false
 	while (($#)); do
 		case "$1" in
 		--target)
@@ -100,7 +101,8 @@ create_instance() {
 		--precheck) precheck=true; shift ;;
 		--dry-run) dry_run=true; shift ;;
 		--force) force=true; shift ;;
-		--memory-size) memory_size=${2:?missing value for $1}; shift 2 ;;
+		--memory-size) memory_size=${2:?missing value for $1}; memory_size_explicit=true; shift 2 ;;
+		--recommend-memory) recommend_memory=true; shift ;;
 		*) die "unknown create option: $1" ;;
 		esac
 	done
@@ -119,6 +121,8 @@ create_instance() {
 	is_port "${db_port}" && ((db_port >= 3 && db_port <= 65534)) || die "--db-port must allow two lower and one higher port"
 	is_safe_field "${remarks}" || die "remarks cannot contain tabs or newlines"
 	[[ -z ${memory_size} || ${memory_size} =~ ^[1-9][0-9]*([MmGg])?$ ]] || die "--memory-size must be an integer with optional M or G suffix"
+	[[ ${recommend_memory} == false || ${memory_size_explicit} == false ]] || die "--recommend-memory cannot be combined with --memory-size"
+	[[ ${recommend_memory} == false ]] || memory_size=""
 
 	local cluster="${CLUSTER_PREFIX}${db_port}"
 	local db_basedir="${BASE_DIR}/${cluster}"
@@ -159,6 +163,7 @@ create_instance() {
 		--os-user "${OS_USER}" --os-group "${OS_GROUP}"
 		--memory-limit "${MEMORY_LIMIT}" --log-dir "${MYAS_LOG_DIR}/${cluster}")
 	[[ -z ${memory_size} ]] || command+=(--memory-size "${memory_size}")
+	[[ ${recommend_memory} == true ]] && command+=(--recommend-memory)
 	if [[ ${local_mode} == true ]]; then
 		command+=(--local)
 	else

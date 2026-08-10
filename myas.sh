@@ -31,6 +31,7 @@ Create options:
   --dry-run            Ask yinstall to print planned mutation
   --force              Allow cleanup of stale managed installation files
   --memory-size SIZE   Memory target for this deployment; integer M(default) or G
+  --recommend-memory   Let yasboot calculate memory from MEMORY_LIMIT
 
 Global settings: BASE_DIR, CLUSTER_PREFIX, PACKAGE_DIR, ARCH, YINSTALL_BIN,
 SSH_USER, SSH_PORT, YASOM_PORT_START, SYS_PASSWORD, OS_USER, OS_GROUP, MEMORY_LIMIT, MEMORY_SIZE.

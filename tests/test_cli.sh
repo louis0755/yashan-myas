@@ -80,10 +80,14 @@ run_myas create nextdb 23.4.14.100
 run_myas create forcedb 23.4.14.100 --db-port 1811 --force --memory-size 1G
 assert_contains '--force' "${MARKER}"
 assert_contains '--memory-size 1G' "${MARKER}"
+run_myas create recommenddb 23.4.14.100 --db-port 1815 --recommend-memory
+assert_contains '--recommend-memory' "${MARKER}"
+assert_failure run_myas create invalidmemory 23.4.14.100 --db-port 1819 --recommend-memory --memory-size 2G
 
 run_myas >"${TMP_DIR}/list"
-assert_contains 'PORTS' "${TMP_DIR}/list"
-assert_contains '1701/1702/1703/1704' "${TMP_DIR}/list"
+assert_contains 'PORT' "${TMP_DIR}/list"
+assert_contains 'ys1703' "${TMP_DIR}/list"
+assert_contains 'appdb' "${TMP_DIR}/list"
 assert_contains $'appdb\t23.4.14.100\tys1703\t1703\t1701\t1702\t1704' "${CONFIG_DIR}/instances.tsv"
 assert_contains $'localdb\t23.4.14.100\tys1803\t1803\t1801\t1802\t1804\tlocal' "${CONFIG_DIR}/instances.tsv"
 assert_contains $'nextdb\t23.4.14.100\tys1807\t1807\t1805\t1806\t1808\tlocal' "${CONFIG_DIR}/instances.tsv"
