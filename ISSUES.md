@@ -78,7 +78,8 @@
 - 发现：2026-08-10
 - 错误信息：`instance already exists`、`yasom port ... is already used`。
 - 原因：目标机仍是旧组合包，且 force 未传递到 yasboot。
-- 状态：`IN PROGRESS`
+- 状态：`FIXED`
+- 修复版本：`0.2.4`
 - 修复：重新组装发布包并在重部署前停止实例。
 
 ## MYAS-014 — 删除未清理 yasboot 集群登记
@@ -87,6 +88,7 @@
 - 错误信息：`file ~/.yasboot/ys1903.env is already exist`。
 - 影响：删除实例后同名 cluster 无法重新部署。
 - 状态：`FIXED`
+- 修复版本：`0.2.2`
 - 修复：double-check 展示并删除 cluster 专属 `.env` 和 yasdb_home 软链接。
 
 ## MYAS-012 — 小绝对内存无法由整数百分比精确表达
