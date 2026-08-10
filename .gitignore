@@ -1,0 +1,4 @@
+logs/
+*.tmp
+/yinstall/
+/tools/*.tmp
