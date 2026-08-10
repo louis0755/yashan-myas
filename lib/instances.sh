@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 
 list_instances() {
-	printf '%-16s %-14s %-16s %-19s %-12s %s\n' NAME VERSION CLUSTER PORTS STATUS TARGET
+	local current_cluster=${YASHANDB_CLUSTER:-} remarks current
+	printf '%-16s %-14s %-8s %-12s %-12s %-20s %s\n' NAME VERSION PORT MYSQL STATUS REMARKS CURRENT
 	while IFS=$'\t' read -r name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks || [[ -n ${name} ]]; do
 		[[ -z ${name} || ${name} == \#* ]] && continue
-		printf '%-16s %-14s %-16s %-19s %-12s %s\n' "${name}" "${version}" "${cluster}" "${yasom_port}/${yasagent_port}/${db_port}/${replicat_port}" "${status}" "${target}"
+		current=""
+		[[ ${cluster} == "${current_cluster}" ]] && current='*'
+		[[ -n ${remarks} ]] || remarks=${name}
+		printf '%-16s %-14s %-8s %-12s %-12s %-20s %s\n' "${cluster}" "${version}" "${db_port}" "No" "${status}" "${remarks}" "${current}"
 	done <"${INSTANCES_FILE}"
 }
 
@@ -184,6 +188,8 @@ delete_instance() {
 	printf '  CLUSTER_NAME: %s\n' "${INSTANCE_CLUSTER}"
 	printf '  YASDB_HOME:   %s\n' "${INSTANCE_INSTALL_PATH}"
 	printf '  YASDB_DATA:   %s\n' "${INSTANCE_DATA_PATH}"
+	printf '  YASBOOT_ENV:  %s\n' "${HOME}/.yasboot/${INSTANCE_CLUSTER}.env"
+	printf '  YASBOOT_HOME: %s\n' "${HOME}/.yasboot/${INSTANCE_CLUSTER}_yasdb_home"
 	printf '确认删除并清理以上目录？仅输入 y 继续: '
 	IFS= read -r answer
 	[[ ${answer} == y ]] || { printf '已取消。\n'; return 1; }
@@ -193,6 +199,7 @@ delete_instance() {
 		[[ ${managed_path} == "${BASE_DIR}/${INSTANCE_CLUSTER}/"* ]] || die "refusing to delete unsafe path: ${managed_path}"
 	done
 	/usr/bin/sudo -n rm -rf -- "${INSTANCE_INSTALL_PATH}" "${INSTANCE_DATA_PATH}" "${INSTANCE_LOG_PATH}" "${INSTANCE_STAGE_DIR}"
+	rm -f -- "${HOME}/.yasboot/${INSTANCE_CLUSTER}.env" "${HOME}/.yasboot/${INSTANCE_CLUSTER}_yasdb_home"
 	temp_file=$(mktemp "${MYAS_CONFIG_DIR}/instances.XXXXXX")
 	awk -F '\t' -v name="${INSTANCE_NAME}" '$1 != name' "${INSTANCES_FILE}" >"${temp_file}"
 	mv -- "${temp_file}" "${INSTANCES_FILE}"
