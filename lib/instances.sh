@@ -67,7 +67,8 @@ show_instance() {
 
 emit_environment() {
 	load_instance "$1" || die "unknown instance or cluster: $1"
-	local yasboot_env="${HOME}/.yasboot/${INSTANCE_CLUSTER}_yasdb_home/conf/${INSTANCE_CLUSTER}.bashrc"
+	local yasboot_env="${HOME}/.yasboot/${INSTANCE_CLUSTER}_yasdb_home/conf/${INSTANCE_CLUSTER}.bashrc" display_status
+	display_status=$(instance_display_status "${INSTANCE_STATUS}" "${INSTANCE_DATA_PATH}")
 	if [[ -f ${yasboot_env} ]]; then
 		printf 'source %q\n' "${yasboot_env}"
 	else
@@ -92,6 +93,13 @@ emit_environment() {
 	printf 'alias ystart=%q\n' "${MYAS_BIN} start ${INSTANCE_CLUSTER}"
 	printf 'alias yshutdown=%q\n' "${MYAS_BIN} shutdown ${INSTANCE_CLUSTER}"
 	printf 'alias yrestart=%q\n' "${MYAS_BIN} restart ${INSTANCE_CLUSTER}"
+	printf "printf '%%s\\n' %q\n" "YashanDB '${INSTANCE_CLUSTER}' (version ${INSTANCE_VERSION}) is now active"
+	printf "printf '%%s\\n' %q\n" "Status: ${display_status}"
+	if [[ -n ${INSTANCE_MYSQL_PORT} ]]; then
+		printf "printf '%%s\\n' %q\n" "MySQL mode: Yes (port ${INSTANCE_MYSQL_PORT})"
+	else
+		printf "printf '%%s\\n' %q\n" 'MySQL mode: No'
+	fi
 }
 
 emit_aliases() {
@@ -114,7 +122,7 @@ emit_shell_init() {
 create_instance() {
 	local name=$1 version=$2
 	shift 2
-	local target="" db_port="" package="" remarks="" memory_size="${MEMORY_SIZE}" precheck=false dry_run=false force=false local_mode=true local_explicit=false
+	local target="" db_port="" package="" remarks="" memory_size="${MEMORY_SIZE}" precheck=false dry_run=false force=false local_mode=true local_explicit=false use_native_type=false
 	local mysql_mode=false mysql_port=""
 	while (($#)); do
 		case "$1" in
@@ -139,6 +147,7 @@ create_instance() {
 		--memory-size) memory_size=${2:?missing value for $1}; shift 2 ;;
 		--mysql) mysql_mode=true; shift ;;
 		--mysql-port) mysql_mode=true; mysql_port=${2:?missing value for $1}; shift 2 ;;
+		--use-native-type) use_native_type=true; shift ;;
 		*) die "unknown create option: $1" ;;
 		esac
 	done
@@ -203,6 +212,7 @@ create_instance() {
 		--log-dir "${MYAS_LOG_DIR}/${cluster}")
 	[[ -z ${memory_size} ]] || command+=(--memory-size "${memory_size}")
 	[[ ${mysql_mode} == false ]] || command+=(--mode mysql --mysql-port "${mysql_port}")
+	[[ ${use_native_type} == false ]] || command+=(--use-native-type)
 	if [[ ${local_mode} == true ]]; then
 		command+=(--local)
 	else

@@ -33,6 +33,7 @@ Create options:
   --memory-size SIZE   Memory target for this deployment; integer M(default) or G
   --mysql              Enable MySQL protocol using the next available port
   --mysql-port PORT    Enable MySQL protocol on an explicit port
+  --use-native-type    Set USE_NATIVE_TYPE=true during database installation
 
 Global settings: BASE_DIR, CLUSTER_PREFIX, PACKAGE_DIR, ARCH, YINSTALL_BIN,
 SSH_USER, SSH_PORT, YASOM_PORT_START, MYSQL_PORT_START, SYS_PASSWORD, OS_USER, OS_GROUP, MEMORY_SIZE.

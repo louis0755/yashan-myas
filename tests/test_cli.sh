@@ -98,6 +98,8 @@ assert_contains '--memory-size 1G' "${MARKER}"
 run_myas create mysqldb 23.4.14.100 --db-port 1815 --mysql-port 3310
 assert_contains '--mode mysql --mysql-port 3310' "${MARKER}"
 run_myas create planneddb 23.4.14.100 --db-port 1819 --dry-run
+run_myas create nativedb 23.4.14.100 --db-port 1823 --use-native-type
+assert_contains '--use-native-type' "${MARKER}"
 
 run_myas >"${TMP_DIR}/list"
 assert_contains 'PORT' "${TMP_DIR}/list"
@@ -142,14 +144,20 @@ env HOME="${TMP_DIR}/home" MYAS_CONFIG_DIR="${CONFIG_DIR}" MYAS_TEST_MARKER="${M
 ' _ "${ROOT_DIR}/myas.sh"
 run_myas alias >"${TMP_DIR}/aliases"
 assert_contains "alias ys1703='source <(${ROOT_DIR}/myas.sh env ys1703)'" "${TMP_DIR}/aliases"
-env MYAS_CONFIG_DIR="${CONFIG_DIR}" MYAS_TEST_MARKER="${MARKER}" bash -c '
+env MYAS_CONFIG_DIR="${CONFIG_DIR}" MYAS_TEST_MARKER="${MARKER}" MYAS_PS_BIN="${FAKE_PS}" bash -c '
   shopt -s expand_aliases
   eval "$("$1" shell-init)"
   type myas >/dev/null
   type ys1703 >/dev/null
-  ys1703
+  ys1703 >"$2"
   [[ ${YASHANDB_CLUSTER} == ys1703 ]]
-' _ "${ROOT_DIR}/myas.sh"
+  grep -F "YashanDB '\''ys1703'\'' (version 23.4.14.100) is now active" "$2" >/dev/null
+  grep -F "Status: RUNNING" "$2" >/dev/null
+  grep -F "MySQL mode: No" "$2" >/dev/null
+  ys1815 >"$3"
+  grep -F "Status: INSTALLED" "$3" >/dev/null
+  grep -F "MySQL mode: Yes (port 3310)" "$3" >/dev/null
+' _ "${ROOT_DIR}/myas.sh" "${TMP_DIR}/activation-output" "${TMP_DIR}/mysql-activation-output"
 
 run_myas shutdown ys1703
 run_myas start ys1703
