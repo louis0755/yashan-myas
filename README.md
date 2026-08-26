@@ -58,6 +58,7 @@ myas/
 ./myas.sh create appdb 23.4.14.100
 ./myas.sh create appdb2 23.4.14.100 --db-port 1803
 ./myas.sh create native-db 23.4.14.100 --use-native-type
+./myas.sh create gbk-db 23.4.14.100 --character-set GBK
 ./myas.sh
 eval "$(./myas.sh shell-init)"
 ys1703

@@ -122,7 +122,7 @@ emit_shell_init() {
 create_instance() {
 	local name=$1 version=$2
 	shift 2
-	local target="" db_port="" package="" remarks="" memory_size="${MEMORY_SIZE}" precheck=false dry_run=false force=false local_mode=true local_explicit=false use_native_type=false
+	local target="" db_port="" package="" remarks="" memory_size="${MEMORY_SIZE}" precheck=false dry_run=false force=false local_mode=true local_explicit=false use_native_type=false character_set=""
 	local mysql_mode=false mysql_port=""
 	while (($#)); do
 		case "$1" in
@@ -148,6 +148,7 @@ create_instance() {
 		--mysql) mysql_mode=true; shift ;;
 		--mysql-port) mysql_mode=true; mysql_port=${2:?missing value for $1}; shift 2 ;;
 		--use-native-type) use_native_type=true; shift ;;
+		--character-set) character_set=${2:?missing value for $1}; shift 2 ;;
 		*) die "unknown create option: $1" ;;
 		esac
 	done
@@ -213,6 +214,7 @@ create_instance() {
 	[[ -z ${memory_size} ]] || command+=(--memory-size "${memory_size}")
 	[[ ${mysql_mode} == false ]] || command+=(--mode mysql --mysql-port "${mysql_port}")
 	[[ ${use_native_type} == false ]] || command+=(--use-native-type)
+	[[ -z ${character_set} ]] || command+=(--character-set "${character_set}")
 	if [[ ${local_mode} == true ]]; then
 		command+=(--local)
 	else

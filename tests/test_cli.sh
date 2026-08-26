@@ -100,6 +100,8 @@ assert_contains '--mode mysql --mysql-port 3310' "${MARKER}"
 run_myas create planneddb 23.4.14.100 --db-port 1819 --dry-run
 run_myas create nativedb 23.4.14.100 --db-port 1823 --use-native-type
 assert_contains '--use-native-type' "${MARKER}"
+run_myas create gbkdb 23.4.14.100 --db-port 1827 --character-set gbk
+assert_contains '--character-set gbk' "${MARKER}"
 
 run_myas >"${TMP_DIR}/list"
 assert_contains 'PORT' "${TMP_DIR}/list"
