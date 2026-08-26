@@ -25,6 +25,17 @@ SYS_PASSWORD=__MYAS_SYS_PASSWORD__
 目标机注入实际值。也可用 `./myas.sh config set SYS_PASSWORD '新密码'` 修改。
 `myas` 会将它传给 `yinstall`，配置显示时会掩码该值，且设置文件仅当前用户可读写。
 
+部署前可对一台或多台目标主机执行只读预检：
+
+```bash
+./myas.sh check 192.168.23.4 192.168.23.5 192.168.23.13
+```
+
+预检会根据当前配置检查 SSH、Linux 发行版、CPU、内存、`ARCH`、磁盘空间、
+`OS_USER`/`OS_GROUP`、免交互 sudo、必需命令和安装根目录权限。`FAIL` 项会使命令
+返回非零并生成 `NEED` 提示；`WARN` 仅提示，例如目录尚未创建或磁盘空间偏低。
+多架构主机应分别设置 `ARCH` 或在创建时使用匹配的 `--package`。
+
 `yinstall` 使用独立仓库维护。组合发布包可将它放在 `myas/yinstall/`，但 myas
 源码仓库不跟踪该目录：
 

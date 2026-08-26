@@ -11,6 +11,8 @@ source "${MYAS_ROOT}/lib/myas-common.sh"
 source "${MYAS_ROOT}/lib/instances.sh"
 # shellcheck source=lib/lifecycle.sh
 source "${MYAS_ROOT}/lib/lifecycle.sh"
+# shellcheck source=lib/hostcheck.sh
+source "${MYAS_ROOT}/lib/hostcheck.sh"
 
 usage() {
 	printf 'myas %s\n\n' "${VERSION}"
@@ -19,6 +21,7 @@ Usage:
   myas.sh create NAME VERSION [--db-port PORT] [--target HOST] [options]
   myas.sh [list] | info NAME_OR_CLUSTER | env NAME_OR_CLUSTER | alias | shell-init
   myas.sh status|start|shutdown|restart [NAME_OR_CLUSTER]
+  myas.sh check HOST [HOST...]
   myas.sh config show | config set KEY VALUE
 
 Create options:
@@ -68,6 +71,7 @@ main() {
 	case "${command}" in
 	create) (($# >= 2)) || die "usage: create NAME VERSION [--db-port PORT] [--target HOST]"; create_instance "$@" ;;
 	list) (($# == 0)) || die "list takes no arguments"; list_instances ;;
+	check) check_hosts "$@" ;;
 	info) (($# == 1)) || die "usage: info NAME_OR_CLUSTER"; show_instance "$1" ;;
 	env) (($# == 1)) || die "usage: env NAME_OR_CLUSTER"; emit_environment "$1" ;;
 	alias) (($# == 0)) || die "alias takes no arguments"; emit_aliases ;;

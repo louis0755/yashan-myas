@@ -87,6 +87,7 @@ run_myas config show | grep -F 'YASOM_PORT_START=1701' >/dev/null
 run_myas config show | grep -F 'MYSQL_PORT_START=3307' >/dev/null
 run_myas config show | grep -F 'SYS_PASSWORD=********' >/dev/null
 [[ $(stat -c '%a' "${CONFIG_DIR}/settings.conf") == 600 ]]
+assert_failure run_myas check 'bad host'
 run_myas create appdb 23.4.14.100 --target 10.0.0.11 --db-port 1703
 run_myas config set YASOM_PORT_START 1801 >/dev/null
 run_myas config set SYS_PASSWORD LocalPass-2026 >/dev/null
