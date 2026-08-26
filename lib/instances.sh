@@ -123,7 +123,7 @@ create_instance() {
 	local name=$1 version=$2
 	shift 2
 	local target="" db_port="" package="" remarks="" memory_size="${MEMORY_SIZE}" precheck=false dry_run=false force=false local_mode=true local_explicit=false use_native_type=false character_set=""
-	local mysql_mode=false mysql_port=""
+	local mysql_mode=false mysql_port="" host_ip=""
 	while (($#)); do
 		case "$1" in
 		--target)
@@ -149,6 +149,7 @@ create_instance() {
 		--mysql-port) mysql_mode=true; mysql_port=${2:?missing value for $1}; shift 2 ;;
 		--use-native-type) use_native_type=true; shift ;;
 		--character-set) character_set=${2:?missing value for $1}; shift 2 ;;
+		--host-ip | --ip) host_ip=${2:?missing value for $1}; shift 2 ;;
 		*) die "unknown create option: $1" ;;
 		esac
 	done
@@ -215,6 +216,7 @@ create_instance() {
 	[[ ${mysql_mode} == false ]] || command+=(--mode mysql --mysql-port "${mysql_port}")
 	[[ ${use_native_type} == false ]] || command+=(--use-native-type)
 	[[ -z ${character_set} ]] || command+=(--character-set "${character_set}")
+	[[ -z ${host_ip} ]] || command+=(--host-ip "${host_ip}")
 	if [[ ${local_mode} == true ]]; then
 		command+=(--local)
 	else
