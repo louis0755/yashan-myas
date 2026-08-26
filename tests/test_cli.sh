@@ -150,6 +150,8 @@ env MYAS_CONFIG_DIR="${CONFIG_DIR}" MYAS_TEST_MARKER="${MARKER}" MYAS_PS_BIN="${
   shopt -s expand_aliases
   eval "$("$1" shell-init)"
   type myas >/dev/null
+  myas create autorefresh 23.4.14.100 --db-port 1831 >/dev/null
+  type ys1831 >/dev/null
   type ys1703 >/dev/null
   ys1703 >"$2"
   [[ ${YASHANDB_CLUSTER} == ys1703 ]]

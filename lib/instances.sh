@@ -114,7 +114,7 @@ emit_aliases() {
 emit_shell_init() {
 	local command=${MYAS_BIN}
 	[[ -x ${HOME}/.local/bin/myas ]] && command="${HOME}/.local/bin/myas"
-	printf 'myas() { %q "$@"; }\n' "${command}"
+	printf 'myas() { local myas_status; if %q "$@"; then myas_status=0; else myas_status=$?; fi; myas_refresh; return "${myas_status}"; }\n' "${command}"
 	printf 'myas_refresh() { eval "$(%q alias)"; }\n' "${command}"
 	printf 'myas_refresh\n'
 }
