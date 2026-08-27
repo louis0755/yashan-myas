@@ -20,6 +20,7 @@ printf '%s\n' \
 	'#!/usr/bin/env bash' \
 	'set -Eeuo pipefail' \
 	'printf "yinstall:%s\n" "$*" >>"${MYAS_TEST_MARKER}"' \
+	'printf "syspwd=%s\n" "${YINSTALL_SYS_PASSWORD:-}" >>"${MYAS_TEST_MARKER}"' \
 	'stage_dir=""' \
 	'while (($#)); do' \
 	'  case "$1" in' \
@@ -127,8 +128,12 @@ grep -F $'\tINSTALLED\t__MYAS_EMPTY__\t3310' "${CONFIG_DIR}/instances.tsv" >/dev
 assert_contains $'\tINSTALLED\t' "${CONFIG_DIR}/instances.tsv"
 assert_contains 'db install --package' "${MARKER}"
 assert_contains '--local' "${MARKER}"
-assert_contains '--db-admin-password TestInitial-2026' "${MARKER}"
-assert_contains '--db-admin-password LocalPass-2026' "${MARKER}"
+assert_contains 'syspwd=TestInitial-2026' "${MARKER}"
+assert_contains 'syspwd=LocalPass-2026' "${MARKER}"
+if grep -F -- '--db-admin-password' "${MARKER}" >/dev/null; then
+	echo 'database password passed on the command line' >&2
+	exit 1
+fi
 run_myas env ys1703 >"${TMP_DIR}/environment"
 assert_contains 'export YASHANDB_CLUSTER=ys1703' "${TMP_DIR}/environment"
 run_myas env ys1815 | grep -F 'export YASHANDB_MYSQL_PORT=3310' >/dev/null
