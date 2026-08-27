@@ -82,6 +82,19 @@ ys1703
   --db-port 1803
 ```
 
+一主一备可在一次 yasboot 配置生成和部署中指定，避免后置 `cluster join`。执行主机
+必须能以 `SSH_USER` 免密 SSH 到备机；myas 会在生成配置前检查该连接：
+
+```bash
+./myas.sh create ha-db 23.4.14.105 --target 192.168.23.4 \
+  --host-ip 192.168.23.4 --standbys 192.168.23.13 \
+  --package /tmp/yashandb-23.4.14.105-linux-x86_64.tar.gz --db-port 18003
+```
+
+该模式传给 yasboot 的核心参数为 `--ip 192.168.23.4,192.168.23.13 --node 2
+--standby-node 1`。如果免密 SSH 检查失败，需要补充 SSH 公钥、用户、端口或显式
+密码配置后再部署。
+
 切换环境后可使用 `ystatus`、`ystart`、`yshutdown` 和 `yrestart`。运行
 `tests/test_cli.sh` 执行快速 CLI 测试。
 

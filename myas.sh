@@ -39,6 +39,7 @@ Create options:
   --use-native-type    Set USE_NATIVE_TYPE=true during database installation
   --character-set CHARSET  Set database character set (ASCII, ISO88591, GBK, UTF8, GB18030)
   --host-ip IP         Set the database host/listen IP (alias: --ip)
+  --standbys HOST,...   Generate and deploy a primary/standby topology in one operation
 
 Global settings: BASE_DIR, CLUSTER_PREFIX, PACKAGE_DIR, ARCH, YINSTALL_BIN,
 SSH_USER, SSH_PORT, YASOM_PORT_START, MYSQL_PORT_START, SYS_PASSWORD, OS_USER, OS_GROUP, MEMORY_SIZE.

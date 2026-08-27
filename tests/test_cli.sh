@@ -103,6 +103,8 @@ run_myas create nativedb 23.4.14.100 --db-port 1823 --use-native-type
 assert_contains '--use-native-type' "${MARKER}"
 run_myas create gbkdb 23.4.14.100 --db-port 1827 --character-set gbk
 assert_contains '--character-set gbk' "${MARKER}"
+run_myas create hadb 23.4.14.100 --target 10.0.0.11 --db-port 1835 --host-ip 10.0.0.11 --standbys 10.0.0.12
+assert_contains '--standbys 10.0.0.12' "${MARKER}"
 
 run_myas >"${TMP_DIR}/list"
 assert_contains 'PORT' "${TMP_DIR}/list"
