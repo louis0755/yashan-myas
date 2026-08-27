@@ -208,7 +208,7 @@ create_instance() {
 	append_instance
 
 	local -a command
-	command=("${YINSTALL_BIN}" db install --package "${package}" --db-admin-password "${SYS_PASSWORD}"
+	command=(env YINSTALL_SYS_PASSWORD="${SYS_PASSWORD}" "${YINSTALL_BIN}" db install --package "${package}"
 		--cluster "${cluster}" --db-port "${db_port}" --install-path "${INSTANCE_INSTALL_PATH}"
 		--data-path "${INSTANCE_DATA_PATH}" --log-path "${INSTANCE_LOG_PATH}" --stage-dir "${INSTANCE_STAGE_DIR}"
 		--os-user "${OS_USER}" --os-group "${OS_GROUP}"
