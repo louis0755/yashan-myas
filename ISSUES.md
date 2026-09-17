@@ -153,3 +153,29 @@
 - 状态：`FIXED`
 - 修复版本：`0.3.2`
 - 验证：目标机运行中的 `ys1903` 在有无当前环境标记时均显示 `RUNNING`，`CURRENT` 仅随环境选择变化。
+
+## MYAS-021 — myas --help 未列出 delete 子命令
+
+- 发现：2026-09-17
+- GitHub：[#25](https://github.com/louis0755/yashan-myas/issues/25)
+- 现象：在 `192.168.23.4` 执行 `myas --help`，Usage 段只有 create、list/info/env/alias/shell-init、status|start|shutdown|restart、check、config，没有 `delete`；删除只在 `main()` 的 case 分支实现。
+- 影响：操作员清理测试或失败实例时无法从帮助发现 `myas delete`，容易改为手工 `rm -rf` 实例目录，留下 `~/.myas/instances.tsv` 登记和 `~/.yasboot/<cluster>.env`。
+- 状态：`FIXED`
+- 排期：`0.3.8`
+- 修复版本：`0.3.8`
+- 修复：`usage()` 增加 `myas.sh delete NAME_OR_CLUSTER`，并说明仅支持本地实例、清理范围和交互确认。
+- 验证：`myas/tests/test_cli.sh` 断言 `--help` 输出包含 `delete NAME_OR_CLUSTER`。
+
+## MYAS-022 — myas delete 无法清理 legacy FAILED 登记
+
+- 发现：2026-09-17
+- GitHub：[#26](https://github.com/louis0755/yashan-myas/issues/26)
+- 错误信息：`myas: yasboot is unavailable: /data/yashan/ys18011/install/bin/yasboot`。
+- 现象：`192.168.23.4` 上一次早期失败实例（登记状态 `FAILED`、install 目录无 `bin/yasboot`）执行 `myas delete ys18011` 并确认 `y` 后直接失败，登记行、实例目录和占用端口的孤儿 `yasom`/`yasagent` 全部保留。
+- 原因：`delete_instance()` 仅在状态为 `REGISTERED`/`REGISTERED_FAILED` 且无 yasboot 时走早失败清理分支，其余情况调用 `run_lifecycle shutdown`；`require_instance()` 找不到 yasboot 即 `die`。0.3.6 的失败登记统一写 `FAILED`，0.3.7 才区分 `REGISTERED_FAILED`/`INSTALL_FAILED`，因此 legacy 状态无法删除。
+- 影响：操作员只能手工编辑 `instances.tsv` 并 `rm -rf`；同名集群无法重建；孤儿进程持续占用端口组，下一次创建必然端口冲突。
+- 状态：`FIXED`
+- 排期：`0.3.8`
+- 修复版本：`0.3.8`
+- 修复：按能力而非状态判断早失败路径（无 `bin/yasboot` 或 `hosts.toml` 时跳过停止），兼容 `FAILED`，提示并可选停止残留进程，清理空实例目录。
+- 验证：`myas/tests/test_cli.sh` 覆盖无 yasboot 的 legacy `FAILED` 登记删除（含残留进程提示与目录清理）；`192.168.23.4` 上 `myas delete ys18011` 实测清理成功。

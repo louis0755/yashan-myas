@@ -11,7 +11,7 @@ hostcheck_memory_mib() {
 }
 
 hostcheck_one() {
-	local host=$1 remote_output expected_memory
+	local host=$1 local_mode=${2:-false} remote_output expected_memory
 	expected_memory=$(hostcheck_memory_mib "${MEMORY_SIZE}")
 	printf '\n[%s]\n' "${host}"
 	if ! is_host "${host}"; then
@@ -35,12 +35,20 @@ for command_name in bash awk tar systemctl install getconf; do command -v "\${co
 path_name="${BASE_DIR}"; [ -d "\${path_name}" ] && printf 'DIR_%s=ok\\n' "\${path_name}" || printf 'DIR_%s=missing\\n' "\${path_name}"
 EOF
 )
-	local ssh_args=(-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p "${SSH_PORT}")
-	[[ -z ${SSH_KEY_PATH:-} ]] || ssh_args+=(-i "${SSH_KEY_PATH}")
-	if ! remote_output=$(ssh "${ssh_args[@]}" "${SSH_USER}@${host}" 'bash -se' <<<"${remote_script}" 2>&1); then
-		printf 'FAIL  ssh: connection or remote command failed\nNEED  passwordless SSH for %s@%s on port %s\n' "${SSH_USER}" "${host}" "${SSH_PORT}"
-		printf '%s\n' "${remote_output}" | sed 's/^/      /'
-		return 1
+	if [[ ${local_mode} == true ]]; then
+		if ! remote_output=$(bash -se <<<"${remote_script}" 2>&1); then
+			printf 'FAIL  local host check failed\n'
+			printf '%s\n' "${remote_output}" | sed 's/^/      /'
+			return 1
+		fi
+	else
+		local ssh_args=(-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p "${SSH_PORT}")
+		[[ -z ${SSH_KEY_PATH:-} ]] || ssh_args+=(-i "${SSH_KEY_PATH}")
+		if ! remote_output=$(ssh "${ssh_args[@]}" "${SSH_USER}@${host}" 'bash -se' <<<"${remote_script}" 2>&1); then
+			printf 'FAIL  ssh: connection or remote command failed\nNEED  passwordless SSH for %s@%s on port %s\n' "${SSH_USER}" "${host}" "${SSH_PORT}"
+			printf '%s\n' "${remote_output}" | sed 's/^/      /'
+			return 1
+		fi
 	fi
 	local key value failures=0 warnings=0
 	while IFS='=' read -r key value; do
@@ -66,15 +74,25 @@ EOF
 }
 
 check_hosts() {
-	(($# > 0)) || die 'usage: check HOST [HOST...]'
-	local host failed=0
+	(($# > 0)) || die 'usage: check HOST [HOST...] | check --local'
+	local host failed=0 local_mode=false
+	if [[ ${1} == --local ]]; then
+		(($# == 1)) || die 'usage: check HOST [HOST...] | check --local'
+		local_mode=true
+		host=$(hostname 2>/dev/null || printf local)
+		set --
+	fi
 	printf 'myas host precheck (ARCH=%s, BASE_DIR=%s, PACKAGE_DIR=%s)\n' "${ARCH}" "${BASE_DIR}" "${PACKAGE_DIR}"
 	if [[ ! -d ${PACKAGE_DIR} ]]; then
 		printf 'WARN  local package directory is missing: %s (copy packages before create)\n' "${PACKAGE_DIR}"
 	elif ! compgen -G "${PACKAGE_DIR}/yashandb-*-linux-${ARCH}.tar.gz" >/dev/null; then
 		printf 'WARN  no standard %s package found in %s (use --package for another filename)\n' "${ARCH}" "${PACKAGE_DIR}"
 	fi
-	while (($#)); do host=$1; shift; hostcheck_one "${host}" || failed=1; done
+	if [[ ${local_mode} == true ]]; then
+		hostcheck_one "${host}" true || failed=1
+	else
+		while (($#)); do host=$1; shift; hostcheck_one "${host}" || failed=1; done
+	fi
 	if ((failed)); then printf '\nOverall: FAIL; see NEED lines for missing information or remediation.\n'; return 1; fi
 	printf '\nOverall: PASS; hosts satisfy the configured myas baseline.\n'
 }

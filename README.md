@@ -29,6 +29,7 @@ SYS_PASSWORD=__MYAS_SYS_PASSWORD__
 
 ```bash
 ./myas.sh check 192.168.23.4 192.168.23.5 192.168.23.13
+./myas.sh check --local
 ```
 
 预检会根据当前配置检查 SSH、Linux 发行版、CPU、内存、`ARCH`、磁盘空间、
@@ -97,6 +98,17 @@ ys1703
 
 切换环境后可使用 `ystatus`、`ystart`、`yshutdown` 和 `yrestart`。运行
 `tests/test_cli.sh` 执行快速 CLI 测试。
+
+删除本地实例使用交互式 `delete`，只支持本地实例，展示范围并在输入 `y` 后清理：
+
+```bash
+./myas.sh delete ys1703
+```
+
+删除会清理 `~/.myas/instances.tsv` 登记、`~/.yasboot` 的集群 `.env` 和
+`_yasdb_home` 软链接以及实例目录。检测不到可用 `yasboot` 的早期失败实例（登记状态
+为 `FAILED`、`REGISTERED_FAILED` 或 `INSTALL_FAILED`）同样可以删除：此时跳过生命周期
+停止，改为停止该集群残留的 `yasdb`/`yasom`/`yasagent` 进程。
 
 问题登记在 `ISSUES.md`，使用 `MYAS-NNN` 编号，并同步到 GitHub
 `louis0755/yashan-myas`。每次发布需递增 `VERSION`、更新变更记录、打包、计算

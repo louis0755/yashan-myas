@@ -21,7 +21,8 @@ Usage:
   myas.sh create NAME VERSION [--db-port PORT] [--target HOST] [options]
   myas.sh [list] | info NAME_OR_CLUSTER | env NAME_OR_CLUSTER | alias | shell-init
   myas.sh status|start|shutdown|restart [NAME_OR_CLUSTER]
-  myas.sh check HOST [HOST...]
+  myas.sh delete NAME_OR_CLUSTER
+  myas.sh check HOST [HOST...] | check --local
   myas.sh config show | config set KEY VALUE
 
 Create options:
@@ -40,6 +41,12 @@ Create options:
   --character-set CHARSET  Set database character set (ASCII, ISO88591, GBK, UTF8, GB18030)
   --host-ip IP         Set the database host/listen IP (alias: --ip)
   --standbys HOST,...   Generate and deploy a primary/standby topology in one operation
+
+Delete:
+  Only local instances are supported. Prints cluster, YASDB_HOME and YASDB_DATA, then
+  after typing y removes the registry entry, the yasboot .env and _yasdb_home links and
+  the instance directories. Early-failed instances without a usable yasboot are cleaned
+  without a lifecycle stop, including leftover yasom/yasagent processes of that cluster.
 
 Global settings: BASE_DIR, CLUSTER_PREFIX, PACKAGE_DIR, ARCH, YINSTALL_BIN,
 SSH_USER, SSH_PORT, YASOM_PORT_START, MYSQL_PORT_START, SYS_PASSWORD, OS_USER, OS_GROUP, MEMORY_SIZE.

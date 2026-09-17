@@ -10,10 +10,11 @@ MARKER="${TMP_DIR}/marker"
 FAKE_YINSTALL="${TMP_DIR}/yinstall.sh"
 FAKE_PS="${TMP_DIR}/ps"
 PATH_BIN="${TMP_DIR}/path-bin"
+LOCAL_CHECK_BIN="${TMP_DIR}/local-check-bin"
 PATH_CONFIG_DIR="${TMP_DIR}/path-config"
 BUNDLED_CONFIG_DIR="${TMP_DIR}/bundled-config"
 YINSTALL_CONFIG_DIR="${CONFIG_DIR}/yinstall"
-mkdir -p -- "${PACKAGE_DIR}"
+mkdir -p -- "${PACKAGE_DIR}" "${LOCAL_CHECK_BIN}"
 touch "${PACKAGE_DIR}/yashandb-23.4.14.100-linux-x86_64.tar.gz"
 
 printf '%s\n' \
@@ -37,6 +38,9 @@ printf '%s\n' \
 chmod +x "${FAKE_YINSTALL}"
 printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"${FAKE_PS}"
 chmod +x "${FAKE_PS}"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 99' >"${LOCAL_CHECK_BIN}/ssh"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"${LOCAL_CHECK_BIN}/sudo"
+chmod +x "${LOCAL_CHECK_BIN}/ssh" "${LOCAL_CHECK_BIN}/sudo"
 mkdir -p -- "${YINSTALL_CONFIG_DIR}" "${PATH_BIN}"
 cp -- "${FAKE_YINSTALL}" "${YINSTALL_CONFIG_DIR}/yinstall.sh"
 cp -- "${FAKE_YINSTALL}" "${PATH_BIN}/yinstall"
@@ -62,7 +66,9 @@ assert_contains() {
 }
 
 run_myas --version | grep -F "myas $(<"${ROOT_DIR}/VERSION")" >/dev/null
-run_myas --help | grep -F "myas $(<"${ROOT_DIR}/VERSION")" >/dev/null
+run_myas --help >"${TMP_DIR}/help"
+grep -F "myas $(<"${ROOT_DIR}/VERSION")" "${TMP_DIR}/help" >/dev/null
+assert_contains 'delete NAME_OR_CLUSTER' "${TMP_DIR}/help"
 run_myas config show | grep -F 'YINSTALL_BIN=' >/dev/null
 env MYAS_CONFIG_DIR="${PATH_CONFIG_DIR}" MYAS_TEST_MARKER="${MARKER}" PATH="${PATH_BIN}:${PATH}" \
 	"${ROOT_DIR}/myas.sh" config show | grep -F "YINSTALL_BIN=${PATH_BIN}/yinstall" >/dev/null
@@ -83,12 +89,17 @@ run_myas config set SYS_PASSWORD TestInitial-2026 >/dev/null
 run_myas config set BASE_DIR "${TMP_DIR}/instances" >/dev/null
 run_myas config set PACKAGE_DIR "${PACKAGE_DIR}" >/dev/null
 run_myas config set YINSTALL_BIN "${FAKE_YINSTALL}" >/dev/null
+run_myas config set BASE_DIR "${TMP_DIR}" >/dev/null
+run_myas config set OS_USER "$(id -un)" >/dev/null
+run_myas config set OS_GROUP "$(id -gn)" >/dev/null
 run_myas config show | grep -F 'SSH_USER=yashan' >/dev/null
 run_myas config show | grep -F 'YASOM_PORT_START=1701' >/dev/null
 run_myas config show | grep -F 'MYSQL_PORT_START=3307' >/dev/null
 run_myas config show | grep -F 'SYS_PASSWORD=********' >/dev/null
 [[ $(stat -c '%a' "${CONFIG_DIR}/settings.conf") == 600 ]]
 assert_failure run_myas check 'bad host'
+env PATH="${LOCAL_CHECK_BIN}:${PATH}" MYAS_CONFIG_DIR="${CONFIG_DIR}" "${ROOT_DIR}/myas.sh" check --local >/dev/null
+run_myas config set BASE_DIR "${TMP_DIR}/instances" >/dev/null
 run_myas create appdb 23.4.14.100 --target 10.0.0.11 --db-port 1703
 run_myas config set YASOM_PORT_START 1801 >/dev/null
 run_myas config set SYS_PASSWORD LocalPass-2026 >/dev/null
@@ -182,8 +193,32 @@ assert_contains 'yasboot:cluster restart -c ys1703' "${MARKER}"
 assert_failure env MYAS_CONFIG_DIR="${CONFIG_DIR}" MYAS_TEST_MARKER="${MARKER}" MYAS_TEST_FAIL=true "${ROOT_DIR}/myas.sh" \
 	create failed 23.4.14.100 --target 10.0.0.11 --db-port 1903
 assert_contains $'failed\t23.4.14.100\tys1903\t1903\t1901\t1902\t1904' "${CONFIG_DIR}/instances.tsv"
-assert_contains $'\tFAILED\t' "${CONFIG_DIR}/instances.tsv"
+assert_contains $'\tREGISTERED_FAILED\t' "${CONFIG_DIR}/instances.tsv"
+run_myas info ys1903 | grep -F 'Lifecycle:     REGISTERED_FAILED' >/dev/null
 run_myas list >"${TMP_DIR}/failed-list"
 grep -E 'ys1903.*FAIL' "${TMP_DIR}/failed-list" >/dev/null
+
+# MYAS-022: legacy FAILED registration without yasboot must be deletable in one command.
+FAKE_SUDO="${TMP_DIR}/sudo"
+FAKE_DELETE_PS="${TMP_DIR}/delete-ps"
+printf '%s\n' '#!/usr/bin/env bash' '[[ ${1:-} == -n ]] && shift' 'exec "$@"' >"${FAKE_SUDO}"
+printf '%s\n' '#!/usr/bin/env bash' \
+	"printf '%s\\n' '424242 ${TMP_DIR}/instances/ys1907/yasdb-home/23.4.14.100/bin/yasom --init -c ys1907 -l 127.0.0.1:1905 -d'" >"${FAKE_DELETE_PS}"
+chmod +x "${FAKE_SUDO}" "${FAKE_DELETE_PS}"
+mkdir -p -- "${TMP_DIR}/instances/ys1907/yasdb-data" "${TMP_DIR}/instances/ys1907/yasdb-log" "${TMP_DIR}/instances/ys1907/install"
+printf '%s\n' \
+	$'legacydb\t23.4.14.100\tys1907\t1907\t1905\t1906\t1908\tlocal'$'\t'"${TMP_DIR}/instances/ys1907/yasdb-home"$'\t'"${TMP_DIR}/instances/ys1907/yasdb-data"$'\t'"${TMP_DIR}/instances/ys1907/yasdb-log"$'\t'"${TMP_DIR}/instances/ys1907/install"$'\t'"${PACKAGE_DIR}/yashandb-23.4.14.100-linux-x86_64.tar.gz"$'\tFAILED\t__MYAS_EMPTY__' \
+	>>"${CONFIG_DIR}/instances.tsv"
+assert_failure run_myas delete legacydb
+env HOME="${TMP_DIR}/home" MYAS_CONFIG_DIR="${CONFIG_DIR}" MYAS_TEST_MARKER="${MARKER}" \
+	MYAS_PS_BIN="${FAKE_DELETE_PS}" MYAS_SUDO_BIN="${FAKE_SUDO}" \
+	script -qec "${ROOT_DIR}/myas.sh delete legacydb" /dev/null <<<y >"${TMP_DIR}/delete-output"
+assert_contains 'cleaning instance files without a lifecycle stop' "${TMP_DIR}/delete-output"
+assert_contains 'Stopping leftover processes for ys1907: 424242' "${TMP_DIR}/delete-output"
+if grep -F $'legacydb\t' "${CONFIG_DIR}/instances.tsv" >/dev/null; then
+	echo 'legacy FAILED registration was not removed by delete' >&2
+	exit 1
+fi
+[[ ! -d "${TMP_DIR}/instances/ys1907" ]]
 
 echo "test_cli.sh: passed"

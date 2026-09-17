@@ -1,5 +1,33 @@
 #!/usr/bin/env bash
 
+instance_processes() {
+	local cluster=$1 data_path=${2%/} ps_bin=${MYAS_PS_BIN:-ps}
+	"${ps_bin}" -eo pid=,args= 2>/dev/null | awk -v cluster="${cluster}" -v data_path="${data_path}/" '
+		{
+			command = $0
+			sub(/^[[:space:]]*[0-9]+[[:space:]]+/, "", command)
+			is_managed = command ~ /(^|\/)(yasdb|yasom|yasagent)([[:space:]]|$)/
+			if (!is_managed) next
+			by_cluster = command ~ ("(^|[[:space:]])-c[[:space:]]+" cluster "([[:space:]]|$)")
+			by_data = data_path != "/" && index(command, "-D " data_path) > 0
+			if (by_cluster || by_data) print $1
+		}
+	'
+}
+
+stop_leftover_processes() {
+	local cluster=$1 data_path=$2 pid
+	local -a pids=()
+	mapfile -t pids < <(instance_processes "${cluster}" "${data_path}")
+	((${#pids[@]})) || return 0
+	printf 'Stopping leftover processes for %s: %s\n' "${cluster}" "${pids[*]}"
+	kill -TERM -- "${pids[@]}" 2>/dev/null || true
+	sleep 1
+	for pid in "${pids[@]}"; do
+		kill -KILL -- "${pid}" 2>/dev/null || true
+	done
+}
+
 instance_is_running() {
 	local data_path=${1%/}/ ps_bin=${MYAS_PS_BIN:-ps}
 	"${ps_bin}" -eo args= 2>/dev/null | awk -v data_path="${data_path}" '
@@ -16,7 +44,7 @@ instance_is_running() {
 
 instance_display_status() {
 	local stored_status=$1 data_path=$2
-	if [[ ${stored_status} == FAILED ]]; then
+	if [[ ${stored_status} == FAILED || ${stored_status} == INSTALL_FAILED || ${stored_status} == REGISTERED_FAILED ]]; then
 		printf 'FAIL'
 	elif instance_is_running "${data_path}"; then
 		printf 'RUNNING'
@@ -52,6 +80,7 @@ show_instance() {
 	printf 'Cluster:       %s\n' "${INSTANCE_CLUSTER}"
 	printf 'Target:        %s\n' "${INSTANCE_TARGET}"
 	printf 'Status:        %s\n' "${display_status}"
+	printf 'Lifecycle:     %s\n' "${INSTANCE_STATUS}"
 	printf 'Yasom port:    %s\n' "${INSTANCE_YASOM_PORT}"
 	printf 'Yasagent port: %s\n' "${INSTANCE_YASAGENT_PORT}"
 	printf 'YashanDB port: %s\n' "${INSTANCE_DB_PORT}"
@@ -203,9 +232,11 @@ create_instance() {
 	INSTANCE_LOG_PATH="${db_basedir}/yasdb-log"
 	INSTANCE_STAGE_DIR="${db_basedir}/install"
 	INSTANCE_PACKAGE=${package}
-	INSTANCE_STATUS="INSTALLING"
+	# Persist registration before invoking yinstall so early failures are distinguishable.
+	INSTANCE_STATUS="REGISTERED"
 	INSTANCE_REMARKS=${remarks}
 	append_instance
+	update_instance_status "INSTALLING"
 
 	local -a command
 	command=(env YINSTALL_SYS_PASSWORD="${SYS_PASSWORD}" "${YINSTALL_BIN}" db install --package "${package}"
@@ -235,7 +266,12 @@ create_instance() {
 			update_instance_status "INSTALLED"
 		fi
 	else
-		update_instance_status "FAILED"
+		if [[ ! -e ${INSTANCE_INSTALL_PATH} && ! -e ${INSTANCE_DATA_PATH} &&
+			! -e ${INSTANCE_LOG_PATH} && ! -e ${INSTANCE_STAGE_DIR} ]]; then
+			update_instance_status "REGISTERED_FAILED"
+		else
+			update_instance_status "INSTALL_FAILED"
+		fi
 		return 1
 	fi
 }
@@ -254,13 +290,21 @@ delete_instance() {
 	IFS= read -r answer
 	[[ ${answer} == y ]] || { printf '已取消。\n'; return 1; }
 	[[ ${INSTANCE_TARGET} == local ]] || die "remote instance deletion is not supported"
-	run_lifecycle shutdown "${INSTANCE_CLUSTER}" || true
+	if [[ ! -x ${INSTANCE_STAGE_DIR}/bin/yasboot || ! -f ${INSTANCE_STAGE_DIR}/hosts.toml ]]; then
+		printf 'No usable yasboot for %s; cleaning instance files without a lifecycle stop.\n' "${INSTANCE_CLUSTER}"
+		stop_leftover_processes "${INSTANCE_CLUSTER}" "${INSTANCE_DATA_PATH}"
+	else
+		run_lifecycle shutdown "${INSTANCE_CLUSTER}" || true
+	fi
 	for managed_path in "${INSTANCE_INSTALL_PATH}" "${INSTANCE_DATA_PATH}" "${INSTANCE_LOG_PATH}" "${INSTANCE_STAGE_DIR}"; do
 		[[ ${managed_path} == "${BASE_DIR}/${INSTANCE_CLUSTER}/"* ]] || die "refusing to delete unsafe path: ${managed_path}"
 	done
-	/usr/bin/sudo -n rm -rf -- "${INSTANCE_INSTALL_PATH}" "${INSTANCE_DATA_PATH}" "${INSTANCE_LOG_PATH}" "${INSTANCE_STAGE_DIR}"
+	"${MYAS_SUDO_BIN:-/usr/bin/sudo}" -n rm -rf -- "${INSTANCE_INSTALL_PATH}" "${INSTANCE_DATA_PATH}" "${INSTANCE_LOG_PATH}" "${INSTANCE_STAGE_DIR}"
 	rm -f -- "${HOME}/.yasboot/${INSTANCE_CLUSTER}.env" "${HOME}/.yasboot/${INSTANCE_CLUSTER}_yasdb_home"
 	temp_file=$(mktemp "${MYAS_CONFIG_DIR}/instances.XXXXXX")
 	awk -F '\t' -v name="${INSTANCE_NAME}" '$1 != name' "${INSTANCES_FILE}" >"${temp_file}"
 	mv -- "${temp_file}" "${INSTANCES_FILE}"
+	if [[ -d ${BASE_DIR}/${INSTANCE_CLUSTER} ]] && rmdir -- "${BASE_DIR}/${INSTANCE_CLUSTER}" 2>/dev/null; then
+		printf 'Removed empty directory: %s\n' "${BASE_DIR}/${INSTANCE_CLUSTER}"
+	fi
 }
