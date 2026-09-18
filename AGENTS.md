@@ -85,6 +85,12 @@ instances" or "clean up leftovers" request authorizes only instances named in
 the conversation or provable leftovers of the current test run. Test hosts also
 carry in-use databases — see `myas/docs/MYAS-AGENT-GUIDE.md` ("实例清理边界").
 
+Only operate on databases that myas installed, i.e. instances registered in
+`~/.myas/instances.tsv` and visible in `myas list`, and always through `myas`.
+Databases installed by hand or by other tools — for example `tpcc` on
+`192.168.23.13` or the `/data/yashan/yashandb` leftovers — must never be stopped,
+started, reconfigured or deleted; report them instead.
+
 ## How Agents Call myas
 
 The operator does not run myas from a local shell: agents are the callers. Keep the
