@@ -37,16 +37,19 @@ SYS_PASSWORD=__MYAS_SYS_PASSWORD__
 返回非零并生成 `NEED` 提示；`WARN` 仅提示，例如目录尚未创建或磁盘空间偏低。
 多架构主机应分别设置 `ARCH` 或在创建时使用匹配的 `--package`。
 
-`yinstall` 使用独立仓库维护。组合发布包可将它放在 `myas/yinstall/`，但 myas
-源码仓库不跟踪该目录：
+`yinstall` 使用独立仓库维护，源码与 myas 同级（`../yinstall`，可用
+`YINSTALL_SOURCE` 覆盖），myas 源码仓库不跟踪该目录。打包工具会把它放进
+组合包的 `myas-<版本>/yinstall/`：
 
 ```text
-myas/
-  myas.sh
-  lib/
-  yinstall/
-    yinstall.sh
-    lib/
+源码（工作区根）                     组合包 myas-<版本>/
+  myas/                              myas.sh
+    myas.sh                          lib/
+    lib/                             tools/
+    tools/                           yinstall/
+  yinstall/                            yinstall.sh
+    yinstall.sh                        lib/
+    lib/                               steps/
     steps/
 ```
 

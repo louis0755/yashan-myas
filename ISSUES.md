@@ -200,7 +200,7 @@
 - GitHub：[#28](https://github.com/louis0755/yashan-myas/issues/28)（同因 aarch64 案例见 [#23](https://github.com/louis0755/yashan-myas/issues/23)）
 - 错误信息：`libssl.so.1.1: cannot open shared object file`（`.4`，CentOS 7 x86_64）；`libcrypto_yas.so: version 'OPENSSL_1_1_1f' not found (required by /usr/lib64/libssl.so.1.1)`（`.5`，Kylin V10 aarch64）。
 - 现象：`23.5.4.100` 与 `yashandb-ai-23.5.4.100` 在 `.4`/`.5` 上安装成功但启动失败（`Failed to start instance`、`Lifecycle=INSTALL_FAILED`），四个测试实例已按范围清理。
-- 原因：主机 OpenSSL 版本与包内依赖不匹配——CentOS 7 无 `libssl.so.1.1`；Kylin V10 的 `libssl.so.1.1` 不含 `OPENSSL_1_1_1f` 符号。与 myas/yinstall 行为无关。
+- 原因：主机 OpenSSL 版本与包内依赖不匹配——CentOS 7 无 `libssl.so.1.1`；Kylin V10 的 `libssl.so.1.1` 不含 `OPENSSL_1_1_1f` 符号。与 yinstall 行为无关。
 - 影响：`.4`/`.5` 无法完成 23.5.4.100 与 AI 包的发布矩阵验证，报告中记为 `FAIL（环境限制）`。
 - 状态：`ENVIRONMENT LIMITATION`
 - 修复：需产品确认包对 OpenSSL 的最低要求并提供自带 `libssl` 的方案，或升级主机 OpenSSL；否则在矩阵中标记为不适用。
