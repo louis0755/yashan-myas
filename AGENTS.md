@@ -84,3 +84,28 @@ current request explicitly names that instance; a generic "delete the test
 instances" or "clean up leftovers" request authorizes only instances named in
 the conversation or provable leftovers of the current test run. Test hosts also
 carry in-use databases — see `myas/docs/MYAS-AGENT-GUIDE.md` ("实例清理边界").
+
+## How Agents Call myas
+
+The operator does not run myas from a local shell: agents are the callers. Keep the
+two roles apart.
+
+- **Real instances**: call the myas installed on the host that owns them, through
+  `ssh yashan@HOST 'myas ...'` (`~/.local/bin/myas` -> `~/.local/opt/myas/current`).
+  Never drive real instances with the checkout copy `myas/myas.sh`.
+- **Checkout copy**: development, tests and smoke runs only, always with an isolated
+  registry, e.g. `MYAS_CONFIG_DIR=$(mktemp -d) myas/myas.sh list`; prefer
+  `--precheck`/`--dry-run` for anything that resembles a real host.
+- **Control-side runs** (`--target`, `--standbys`) belong on the primary host itself,
+  e.g. `ssh yashan@192.168.23.4 'myas create NAME VERSION --target 192.168.23.4
+  --host-ip 192.168.23.4 --standbys 192.168.23.13 ...'`; do not run them from this
+  workstation.
+- **Versions**: record `myas --version` and the embedded `yinstall --version` from the
+  machine that executed the command. Host packages lag this checkout until a release
+  is deployed, so say which side produced each result.
+- **Secrets and state**: `~/.myas/settings.conf`, `~/.myas/instances.tsv`, packages and
+  host inventories stay on the hosts; never copy them into the repository, a commit or
+  a report. Do not put real host paths into `~/.myas/settings.conf` values that point
+  into this checkout — resolve yinstall through `YINSTALL_BIN` on the host instead.
+- **Operating rules**: `myas/docs/MYAS-AGENT-GUIDE.md` (instance cleanup boundary, test
+  port ranges, precheck workflow) applies to every agent call.
