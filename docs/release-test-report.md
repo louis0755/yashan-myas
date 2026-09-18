@@ -220,3 +220,24 @@ OpenSSL 环境限制，状态 `ENVIRONMENT LIMITATION`）、MYAS-023（`--preche
 2026-09-18 修复进展：YINSTALL-010 已修复（`steps/host-addrs.awk`，yinstall 0.4.7，CLI 夹具覆盖），
 MYAS-023 已修复（预检/演练不再留下登记，myas 0.3.9，CLI 覆盖）；两项的真实主机复测
 （`.4 → .13` 主备端到端、预检后直接创建）待组合包部署后再执行并更新本节。
+
+## 2026-09-18 myas 0.3.9 组合包部署（192.168.23.4 / .13 / .5）
+
+对象：`myas-0.3.9.tar.gz`（myas 0.3.9 + 内置 yinstall 0.4.7），由工作区
+`myas/tools/package.sh` 生成（git `609201b`、`c1a05ac`），
+SHA256 `f612c0073ca5642bbe35942d3ea9597a086f37c0c30a4d4e054b396d1b4f8ce5`。
+部署方式为 `myas/docs/release/07` 的公开包路径，未使用会重建 `psftdb` 的 `tools/release.sh`。
+
+| 主机 | 架构 | 部署前 | 部署后 | SHA256 | 既有实例 |
+| --- | --- | --- | --- | --- | --- |
+| `192.168.23.4` | x86_64 | myas 0.3.8 | myas 0.3.9 / yinstall 0.4.7 | PASS | 5 个实例（`ys1903`/psftdb、`ys1907`/gbkdb、`ys1950`、`ys1960`、`ys1911`/szsw）未改动，全部 RUNNING |
+| `192.168.23.13` | x86_64 | myas 0.3.8 | 同上 | PASS | `ys19003` 未改动并 RUNNING；`tpcc` 未触碰 |
+| `192.168.23.5` | aarch64 | myas 0.3.8 | 同上 | PASS | `ys19003`、`ys19007`、`ys19103`、`ys19107` 未改动 |
+
+- 每台机部署前备份 `~/.myas/settings.conf`（`settings.conf.bak.2026091812xxxx`），部署后核对
+  `BASE_DIR`、`ARCH`、`YASOM_PORT_START`（`.4`=`1901`，`.13`/`.5`=`1701`）与 `YINSTALL_BIN`
+  （指向 `~/.local/opt/myas/current/yinstall/yinstall.sh`）均符合预期。
+- 三台机 `myas --help` 均包含 `delete NAME_OR_CLUSTER`，`myas list` 读取既有登记正常。
+- 回滚点保留 `~/.local/opt/myas/myas-0.3.8`（`.4` 另有 `0.3.6`，`.13`/`.5` 另有 `0.3.7`），回滚只需把
+  `current` 软链接指回并重建 `~/.local/bin/myas`。
+- 仍未执行：YINSTALL-010 的主备端到端复测、MYAS-023 的“预检 → 直接创建”复测，状态 `NOT RUN`。
