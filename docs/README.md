@@ -18,6 +18,11 @@
 9. [回滚](release/08-rollback.md)
 10. [发布记录模板](release/release-record-template.md)
 
+## 实例运维
+
+- [测试实例内存分配策略](memory-allocation-strategy.md)：按官方文档给单机 SE 测试库分配
+  `DATA_BUFFER_SIZE` / `VM_BUFFER_SIZE` / `SHARE_POOL_SIZE`，并给出应用与校验步骤。
+
 总览见 [`myas/docs/RELEASE.md`](RELEASE.md)。测试标准见
 [`myas/docs/release-test.md`](release-test.md)，日常测试见
 [`myas/docs/TESTING.md`](TESTING.md)，用户部署说明见
