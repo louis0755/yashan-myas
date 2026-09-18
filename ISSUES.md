@@ -179,3 +179,29 @@
 - 修复版本：`0.3.8`
 - 修复：按能力而非状态判断早失败路径（无 `bin/yasboot` 或 `hosts.toml` 时跳过停止），兼容 `FAILED`，提示并可选停止残留进程，清理空实例目录。
 - 验证：`myas/tests/test_cli.sh` 覆盖无 yasboot 的 legacy `FAILED` 登记删除（含残留进程提示与目录清理）；`192.168.23.4` 上 `myas delete ys18011` 实测清理成功。
+
+## MYAS-023 — `--precheck` 成功后留下 PLANNED 登记，同名创建失败
+
+- 发现：2026-09-17
+- GitHub：[#27](https://github.com/louis0755/yashan-myas/issues/27)
+- 错误信息：`myas: instance already exists: reltest1915`。
+- 现象：`192.168.23.4` 上 `myas create ... --precheck` 成功后登记为 `Lifecycle=PLANNED`，紧接着的同名真实创建直接失败，必须先用 `myas delete` 清掉该登记。
+- 原因：`create_instance()` 在调用 yinstall 前写入 `REGISTERED` 登记，预检成功后改为 `PLANNED` 且不自动清除；创建前的 `load_instance` 存在性判断对 `PLANNED` 没有例外，`--force` 只透传给 yinstall。
+- 影响：文档要求的“预检 → 创建”两步流程在默认参数下必然失败一次，操作员容易误判实例已存在或改用手工清理登记。
+- 状态：`FIXED`
+- 排期：`0.3.9`
+- 修复版本：`0.3.9`
+- 修复：预检/`--dry-run` 成功时清除登记，或允许 `create` 覆盖无安装产物的 `PLANNED`/`REGISTERED` 登记。
+- 验证：`myas/tests/test_cli.sh` 覆盖 `--precheck` 不留登记、`--dry-run` 不留登记，以及同名真实创建紧随预检后成功。
+
+## MYAS-024 — 23.5.4.100 与 AI 包在 CentOS 7 / Kylin V10 上因 OpenSSL 不匹配无法启动
+
+- 发现：2026-09-17
+- GitHub：[#28](https://github.com/louis0755/yashan-myas/issues/28)（同因 aarch64 案例见 [#23](https://github.com/louis0755/yashan-myas/issues/23)）
+- 错误信息：`libssl.so.1.1: cannot open shared object file`（`.4`，CentOS 7 x86_64）；`libcrypto_yas.so: version 'OPENSSL_1_1_1f' not found (required by /usr/lib64/libssl.so.1.1)`（`.5`，Kylin V10 aarch64）。
+- 现象：`23.5.4.100` 与 `yashandb-ai-23.5.4.100` 在 `.4`/`.5` 上安装成功但启动失败（`Failed to start instance`、`Lifecycle=INSTALL_FAILED`），四个测试实例已按范围清理。
+- 原因：主机 OpenSSL 版本与包内依赖不匹配——CentOS 7 无 `libssl.so.1.1`；Kylin V10 的 `libssl.so.1.1` 不含 `OPENSSL_1_1_1f` 符号。与 myas/yinstall 行为无关。
+- 影响：`.4`/`.5` 无法完成 23.5.4.100 与 AI 包的发布矩阵验证，报告中记为 `FAIL（环境限制）`。
+- 状态：`ENVIRONMENT LIMITATION`
+- 修复：需产品确认包对 OpenSSL 的最低要求并提供自带 `libssl` 的方案，或升级主机 OpenSSL；否则在矩阵中标记为不适用。
+- 验证：待条件满足后重跑矩阵并更新报告。

@@ -1,5 +1,12 @@
 # 变更记录
 
+## 0.3.9 - 2026-09-18
+
+### 修复
+
+- `--precheck` 与 `--dry-run` 不再留下实例登记：预检/演练结束后清理本次写入的 `~/.myas/instances.tsv` 记录，同名真实创建可以直接执行，不再报 `instance already exists`（MYAS-023）。
+- 删除实例时复用统一的登记清理函数 `remove_instance_registration`，与预检路径保持一致。
+
 ## 0.3.8 - 2026-09-17
 
 ### 修复

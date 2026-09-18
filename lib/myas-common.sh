@@ -225,6 +225,13 @@ update_instance_status() {
 	INSTANCE_STATUS=${status}
 }
 
+remove_instance_registration() {
+	local name=$1 temp_file
+	temp_file=$(mktemp "${MYAS_CONFIG_DIR}/instances.XXXXXX")
+	awk -F '\t' -v name="${name}" '$1 != name' "${INSTANCES_FILE}" >"${temp_file}"
+	mv -- "${temp_file}" "${INSTANCES_FILE}"
+}
+
 port_group_available() {
 	local db_port=$1 mysql_port=${2:-} yasom_port=$((db_port - 2)) yasagent_port=$((db_port - 1)) replicat_port=$((db_port + 1))
 	local name version cluster existing_db existing_yasom existing_yasagent existing_replicat target install_path data_path log_path stage_dir package status remarks existing_mysql

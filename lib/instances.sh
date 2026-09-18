@@ -237,6 +237,10 @@ create_instance() {
 	INSTANCE_REMARKS=${remarks}
 	append_instance
 	update_instance_status "INSTALLING"
+	# --precheck/--dry-run must not leave a registration behind: it would block the
+	# real create of the same name with "instance already exists" (MYAS-023).
+	local planning_only=false
+	[[ ${precheck} == false && ${dry_run} == false ]] || planning_only=true
 
 	local -a command
 	command=(env YINSTALL_SYS_PASSWORD="${SYS_PASSWORD}" "${YINSTALL_BIN}" db install --package "${package}"
@@ -260,13 +264,16 @@ create_instance() {
 	[[ ${force} == true ]] && command+=(--force)
 
 	if "${command[@]}"; then
-		if [[ ${dry_run} == true || ${precheck} == true ]]; then
-			update_instance_status "PLANNED"
+		if [[ ${planning_only} == true ]]; then
+			remove_instance_registration "${INSTANCE_NAME}"
+			printf 'Plan checked by yinstall; no instance registration was kept.\n'
 		else
 			update_instance_status "INSTALLED"
 		fi
 	else
-		if [[ ! -e ${INSTANCE_INSTALL_PATH} && ! -e ${INSTANCE_DATA_PATH} &&
+		if [[ ${planning_only} == true ]]; then
+			remove_instance_registration "${INSTANCE_NAME}"
+		elif [[ ! -e ${INSTANCE_INSTALL_PATH} && ! -e ${INSTANCE_DATA_PATH} &&
 			! -e ${INSTANCE_LOG_PATH} && ! -e ${INSTANCE_STAGE_DIR} ]]; then
 			update_instance_status "REGISTERED_FAILED"
 		else
@@ -277,7 +284,7 @@ create_instance() {
 }
 
 delete_instance() {
-	local query=$1 answer temp_file
+	local query=$1 answer
 	load_instance "${query}" || die "unknown instance or cluster: ${query}"
 	[[ -t 0 ]] || die "delete requires an interactive terminal"
 	printf '即将删除数据库：\n'
@@ -301,9 +308,7 @@ delete_instance() {
 	done
 	"${MYAS_SUDO_BIN:-/usr/bin/sudo}" -n rm -rf -- "${INSTANCE_INSTALL_PATH}" "${INSTANCE_DATA_PATH}" "${INSTANCE_LOG_PATH}" "${INSTANCE_STAGE_DIR}"
 	rm -f -- "${HOME}/.yasboot/${INSTANCE_CLUSTER}.env" "${HOME}/.yasboot/${INSTANCE_CLUSTER}_yasdb_home"
-	temp_file=$(mktemp "${MYAS_CONFIG_DIR}/instances.XXXXXX")
-	awk -F '\t' -v name="${INSTANCE_NAME}" '$1 != name' "${INSTANCES_FILE}" >"${temp_file}"
-	mv -- "${temp_file}" "${INSTANCES_FILE}"
+	remove_instance_registration "${INSTANCE_NAME}"
 	if [[ -d ${BASE_DIR}/${INSTANCE_CLUSTER} ]] && rmdir -- "${BASE_DIR}/${INSTANCE_CLUSTER}" 2>/dev/null; then
 		printf 'Removed empty directory: %s\n' "${BASE_DIR}/${INSTANCE_CLUSTER}"
 	fi

@@ -110,7 +110,8 @@ assert_contains '--force' "${MARKER}"
 assert_contains '--memory-size 1G' "${MARKER}"
 run_myas create mysqldb 23.4.14.100 --db-port 1815 --mysql-port 3310
 assert_contains '--mode mysql --mysql-port 3310' "${MARKER}"
-run_myas create planneddb 23.4.14.100 --db-port 1819 --dry-run
+run_myas create planneddb 23.4.14.100 --db-port 1819 --dry-run >"${TMP_DIR}/dry-run-output"
+assert_contains 'no instance registration was kept' "${TMP_DIR}/dry-run-output"
 run_myas create nativedb 23.4.14.100 --db-port 1823 --use-native-type
 assert_contains '--use-native-type' "${MARKER}"
 run_myas create gbkdb 23.4.14.100 --db-port 1827 --character-set gbk
@@ -124,7 +125,10 @@ assert_contains 'ys1703' "${TMP_DIR}/list"
 assert_contains 'appdb' "${TMP_DIR}/list"
 assert_contains 'Yes (3310)' "${TMP_DIR}/list"
 grep -E 'ys1703.*INSTALLED' "${TMP_DIR}/list" >/dev/null
-grep -E 'ys1819.*NOT RUN' "${TMP_DIR}/list" >/dev/null
+if grep -F 'ys1819' "${TMP_DIR}/list" >/dev/null; then
+	echo 'dry-run left an instance registration behind' >&2
+	exit 1
+fi
 
 printf '%s\n' '#!/usr/bin/env bash' \
 	"printf '%s\\n' '${TMP_DIR}/instances/ys1703/yasdb-home/23.4.14.100/bin/yasdb nomount -D ${TMP_DIR}/instances/ys1703/yasdb-data/db-1-1'" >"${FAKE_PS}"
@@ -189,6 +193,17 @@ assert_contains 'yasboot:cluster stop -c ys1703' "${MARKER}"
 assert_contains 'yasboot:process yasagent stop -c ys1703 -t' "${MARKER}"
 assert_contains 'yasboot:process yasom start -c ys1703 -t' "${MARKER}"
 assert_contains 'yasboot:cluster restart -c ys1703' "${MARKER}"
+
+# MYAS-023: a successful --precheck must not block the real create of the same name.
+run_myas create precheckdb 23.4.14.100 --db-port 1839 --precheck >"${TMP_DIR}/precheck-output"
+assert_contains 'no instance registration was kept' "${TMP_DIR}/precheck-output"
+if grep -F $'precheckdb\t' "${CONFIG_DIR}/instances.tsv" >/dev/null; then
+	echo 'precheck left an instance registration behind' >&2
+	exit 1
+fi
+run_myas create precheckdb 23.4.14.100 --db-port 1839
+assert_contains $'precheckdb\t23.4.14.100\tys1839\t1839\t1837\t1838\t1840\tlocal' "${CONFIG_DIR}/instances.tsv"
+grep -F $'\tINSTALLED\t' "${CONFIG_DIR}/instances.tsv" >/dev/null
 
 assert_failure env MYAS_CONFIG_DIR="${CONFIG_DIR}" MYAS_TEST_MARKER="${MARKER}" MYAS_TEST_FAIL=true "${ROOT_DIR}/myas.sh" \
 	create failed 23.4.14.100 --target 10.0.0.11 --db-port 1903
