@@ -16,6 +16,7 @@ BUNDLED_CONFIG_DIR="${TMP_DIR}/bundled-config"
 YINSTALL_CONFIG_DIR="${CONFIG_DIR}/yinstall"
 mkdir -p -- "${PACKAGE_DIR}" "${LOCAL_CHECK_BIN}"
 touch "${PACKAGE_DIR}/yashandb-23.4.14.100-linux-x86_64.tar.gz"
+touch "${PACKAGE_DIR}/yashandb-23.5.6.100-linux-x86_64.tar.gz"
 
 printf '%s\n' \
 	'#!/usr/bin/env bash' \
@@ -118,6 +119,16 @@ run_myas create gbkdb 23.4.14.100 --db-port 1827 --character-set gbk
 assert_contains '--character-set gbk' "${MARKER}"
 run_myas create hadb 23.4.14.100 --target 10.0.0.11 --db-port 1835 --host-ip 10.0.0.11 --standbys 10.0.0.12
 assert_contains '--standbys 10.0.0.12' "${MARKER}"
+run_myas create test-23414100 23.4.14.100 --db-port 1843
+printf '%s\n' \
+	$'legacy-test\t23.4.7.113\tys1847\t1847\t1845\t1846\t1848\tlocal\t/tmp/home\t/tmp/data\t/tmp/log\t/tmp/stage\t/tmp/package\tINSTALLED\ttest-2347113\t__MYAS_EMPTY__' \
+	>>"${CONFIG_DIR}/instances.tsv"
+run_myas list >"${TMP_DIR}/dotted-version-remarks-list"
+grep -E 'ys1843.*test-23\.4\.14\.100' "${TMP_DIR}/dotted-version-remarks-list" >/dev/null
+grep -E 'ys1847.*test-2347113' "${TMP_DIR}/dotted-version-remarks-list" >/dev/null
+run_myas create test-2356100 23.5.6.100 --db-port 1851 --remarks custom-remarks
+run_myas list >"${TMP_DIR}/custom-remarks-list"
+grep -E 'ys1851.*custom-remarks' "${TMP_DIR}/custom-remarks-list" >/dev/null
 
 run_myas >"${TMP_DIR}/list"
 assert_contains 'PORT' "${TMP_DIR}/list"

@@ -187,6 +187,9 @@ create_instance() {
 	is_identifier "${name}" || die "instance name must be an identifier"
 	[[ ${SYS_PASSWORD} != __MYAS_SYS_PASSWORD__ ]] || die "SYS_PASSWORD is not configured; deploy the package or run config set SYS_PASSWORD"
 	[[ ${version} =~ ^[0-9]+(\.[0-9]+)+$ ]] || die "version must use dotted numeric form"
+	if [[ -z ${remarks} && ${name} == "test-${version//./}" ]]; then
+		remarks="test-${version}"
+	fi
 	if [[ ${local_mode} == false ]]; then
 		is_host "${target}" || die "--target must be a valid host"
 	else
