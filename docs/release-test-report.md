@@ -342,3 +342,37 @@ GBK / `--use-native-type` / MySQL 参数下发、环境变量与目录命名全�
 主备端到端（YINSTALL-010）与 AI 包参数覆盖 `NOT RUN`。按 `myas/docs/RELEASE.md` 与
 `release-test.md`，最终结论为 **`PARTIAL`**：`v0.3.14` 保持非正式候选（pre-release），
 待主机 OpenSSL 或 `23.5.4.100` 构建包修复后重新复测，方可提升为正式 Release。
+
+### 追加：`23.5.6.100` 复测（2026-10-12，用户要求）
+
+目的：确认前述 OpenSSL 限制是否只影响 `23.5.4.100` 这两个构建包。包来自
+`/mnt/d/share/0_package`（`23.5.6.100` 不在 `release-test.md` 的固定六包矩阵内），
+分发到各机 `/tmp` 后核对 SHA256 一致：
+`10978870012a53cf109df930c03afde7cac7c79d40f7d20643501e32eb93d4e2`（x86_64）、
+`79a05fac1e4e7a9ad10024e58556368f77524fabd87623fa976a70e3ecb86d12`（aarch64）。
+
+| 主机 | 架构 | 包 | 版本 | DB 端口 | 预检 | 部署 | 运行状态 | 结果 |
+| --- | --- | --- | --- | ---: | --- | --- | --- | --- |
+| `192.168.23.4` | x86_64 | `yashandb-23.5.6.100-linux-x86_64` | `23.5.6.100` | 18003 | PASS | PASS | `open`/`normal`/`primary` | PASS |
+| `192.168.23.13` | x86_64 | `yashandb-23.5.6.100-linux-x86_64` | `23.5.6.100` | 18003 | PASS | PASS | `open`/`normal`/`primary` | PASS |
+| `192.168.23.5` | aarch64 | `yashandb-23.5.6.100-linux-aarch64` | `23.5.6.100` | 18003 | PASS | PASS | `open`/`normal`/`primary` | PASS |
+
+三台机 `yasdb-home` 目录名均为 `23.5.6.100`，`myas info` 版本与包版本一致。
+
+根因对照（`.4` 完全没有系统 `libssl.so.1.1`，仍启动成功，是最强的对照组）：
+
+- `23.5.4.100` 包内 `third/openssl/` 是 **OpenSSL 1.1.1**（`libcrypto.so.1.1`），其版本节点缺
+  `OPENSSL_1_1_1f`，与主机 `libssl.so.1.1` 要求的节点对不上（Kylin 1.1.1f 主机报
+  `version 'OPENSSL_1_1_1f' not found`），CentOS 7 主机则根本没有 `libssl.so.1.1`；
+- `23.5.6.100` 包内 `third/openssl/` 已换成 **OpenSSL 3**（`libcrypto.so.3`、`libssl.so.3`），
+  且 `lib/libcrypto_yas.so -> ../third/openssl/libcrypto.so.3`、`libssl_yas.so ->
+  ../third/openssl/libssl.so.3`，不再依赖主机 `libssl.so.1.1`。
+
+结论：MYAS-024 记录的限制在 **`23.5.6.100` 构建上已修复**（自带 OpenSSL 3），与主机系统
+OpenSSL 无关；`23.5.4.100` / AI `23.5.4.100` 仍失败。由于 `release-test.md` 的固定矩阵
+仍包含 `23.5.4.100` 与 AI `23.5.4.100`，本次发布门禁结论保持 `PARTIAL`；若后续把矩阵包
+更新为自带 OpenSSL 3 的构建（如 `23.5.6.100`），可按 `release-test.md` §10 重新评估提升为
+正式 Release。AI 形态目前没有对应的 `23.5.6.100` 包，AI 覆盖仍为 `NOT RUN`。
+
+复测实例（`.4:ys18003`、`.13:ys18003`、`.5:ys18003`，均为 `23.5.6.100`）现场保留待确认后清理；
+日志在各机 `/tmp/release-test-0.3.14/2356100.log`。
