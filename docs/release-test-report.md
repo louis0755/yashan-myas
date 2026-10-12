@@ -376,3 +376,73 @@ OpenSSL 无关；`23.5.4.100` / AI `23.5.4.100` 仍失败。由于 `release-test
 
 复测实例（`.4:ys18003`、`.13:ys18003`、`.5:ys18003`，均为 `23.5.6.100`）现场保留待确认后清理；
 日志在各机 `/tmp/release-test-0.3.14/2356100.log`。
+
+## 2026-10-12 myas 0.3.16 组合包发布测试（.4 / .5 / .13 / 192.168.33.10）
+
+对象：`myas-0.3.16.tar.gz`（myas `0.3.16` + 内置 yinstall `0.4.11`），提交 `23b54b2`，
+tag `v0.3.16`，SHA256 `1d9a86b1cccd58d1e661171ec0d41cb0c7c997f4598d2ab14b32a4b7c5c3639c`。
+本次变更是 `myas list` / `myas info` 的显示与实例登记字段（`CHARSET` 列、`CUR` 列、版本列
+截断、`character_set` 字段），未改动安装、端口分配和 yinstall 流程。
+部署方式为 `myas/docs/release/07` 的公开包路径，未使用会重建 `psftdb` 的 `tools/release.sh`。
+GitHub Release 按结论标记为 **pre-release 候选**。
+
+### 自动化测试
+
+`bash -n`（myas + yinstall）、`myas/tests/test_cli.sh`、`yinstall/tests/test_cli.sh`、
+`yinstall/tests/test_ports.sh` 全部返回 `0`。`test_cli.sh` 新增用例覆盖：`CHARSET` 列位置与
+表头顺序、`CUR` 列的 `[*]` 标记、字符集的两处取值来源（登记值 / `<stage-dir>/<cluster>.toml`）、
+内部构建版本列截断与 `REMARKS` 补齐、`--character-set` 大写规范化与非法值拒绝、
+`instances.tsv` 第 17 字段持久化、16 字段旧记录兼容。
+
+### 工具部署
+
+| 主机 | 架构 | 部署前 | 部署后 | 既有实例 |
+| --- | --- | --- | --- | --- |
+| `192.168.23.4` | x86_64 | `0.3.15` | `0.3.16` / yinstall `0.4.11` | 5 个未改动（`ys1903`/psftdb、`ys1907`/gbkdb、`ys1950`、`ys1960`、`ys1911`/szsw） |
+| `192.168.23.5` | aarch64 | `0.3.16`（当日早先部署） | 同上 | 7 个未改动（含 `ys1919`、`ys1927` 的 `27.1.1.2-356-gd953d3665a9`） |
+| `192.168.23.13` | x86_64 | `0.3.14` | 同上 | 4 个未改动；`tpcc` 未触碰 |
+| `192.168.33.10`（`yac2`） | aarch64 | `0.3.12` | 同上 | 2 个未改动（`ys1903`、`ys1907`） |
+
+四台机 `/tmp/myas-0.3.16.tar.gz` 的 SHA256 与 Release 资产一致
+（`1d9a86b1cccd58d1e661171ec0d41cb0c7c997f4598d2ab14b32a4b7c5c3639c`，已下载资产比对）。
+部署前均备份 `~/.myas/settings.conf`；`YINSTALL_BIN` 仍指向
+`~/.local/opt/myas/current/yinstall/yinstall.sh`；四台机的 `~/.bashrc` 原本都已加载
+`myas shell-init`，本次未改动任何 shell 配置。
+
+### 显示路径验证（只读）
+
+| 主机 | 验证项 | 结果 |
+| --- | --- | --- |
+| `.5` | 7 个实例的 `CHARSET` 列 | 全部 `UTF8`（取自 `<stage-dir>/<cluster>.toml` 的 yasboot 默认值）；`ys1919`/`ys1927` 的 `VERSION` 为 `27.1.1.2-356`，完整构建号由 `REMARKS` 补齐 | PASS |
+| `.4` | `ys1907`/gbkdb 与其余实例 | `GBK` 与 `UTF8` 正确区分 | PASS |
+| 四台机 | `myas info CLUSTER` | 新增 `Character set` 行，`Version` 仍为完整版本号 | PASS |
+| 四台机 | `myas env CLUSTER`、`myas alias` | 环境变量正确，别名数量与登记一致（5/7/4/2） | PASS |
+| 四台机 | `myas config show` | `SYS_PASSWORD` 掩码，`ARCH`/`YINSTALL_BIN` 正确 | PASS |
+
+### 创建路径预检（只读，未创建实例）
+
+`.4`（x86_64，`23.4.14.105` x86_64 包）与 `.5`（aarch64，`23.4.14.105` aarch64 包）各执行一次
+`myas create rel-charset-* 23.4.14.105 --local --host-ip HOST --db-port 18003
+--character-set gbk --precheck`：
+
+- 两次均返回 `0`，输出 `Plan checked by yinstall; no instance registration was kept.`；
+- `~/.myas/instances.tsv` 未残留 `rel-charset-*` 登记；
+- `--character-set latin1` 在 `.5` 上以退出码 `1` 拒绝，提示
+  `--character-set must be ASCII, ISO88591, GBK, UTF8, or GB18030`；
+- 小写 `gbk` 被规范化为 `GBK`（`yinstall` 取值校验通过）。
+
+### 未执行项
+
+- 包矩阵的真实创建（`release-test.md` §5/§6）`NOT RUN`：本次未获实例创建授权，只做只读预检；
+- “`--character-set` 写入登记 → `myas list` 显示 `GBK`”的端到端路径目前仅由 `test_cli.sh` 覆盖，
+  真实主机未创建带字符集的实例；
+- `tools/release.sh` 未执行（会删除并重建 `.4` 的 `psftdb`，需单独确认）；
+- 主备测试（§8）`NOT RUN`，本次变更与主备无关。
+
+### 结论（2026-10-12）
+
+自动化测试与四台主机的部署、显示路径、环境变量验证均为 `PASS`，未发现回归；创建路径的
+参数解析、字符集校验和登记写入/清理由只读预检与自动化测试覆盖。真实创建矩阵 `NOT RUN`，
+按 `myas/docs/RELEASE.md` 第 1 节，本次结论为 **`PARTIAL`**，`v0.3.16` 以 pre-release 候选
+形式发布。在 `.4` 或 `.5` 完成一次带 `--character-set GBK` 的真实创建并确认 `myas list`
+显示 `GBK` 后，可提升为正式 Release。
