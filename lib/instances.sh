@@ -186,7 +186,11 @@ create_instance() {
 
 	is_identifier "${name}" || die "instance name must be an identifier"
 	[[ ${SYS_PASSWORD} != __MYAS_SYS_PASSWORD__ ]] || die "SYS_PASSWORD is not configured; deploy the package or run config set SYS_PASSWORD"
-	[[ ${version} =~ ^[0-9]+(\.[0-9]+)+$ ]] || die "version must use dotted numeric form"
+	# Release builds are dotted numeric (23.4.14.105); internal builds carry a build
+	# suffix (27.1.1.2-356-gd953d3665a9) and must be usable verbatim, because yasboot
+	# names YASDB_HOME/<version> from the database package version.
+	[[ ${version} =~ ^[0-9]+(\.[0-9]+)+(-[A-Za-z0-9]+(\.[A-Za-z0-9]+)*)*$ ]] ||
+		die "version must be dotted numeric with an optional build suffix"
 	if [[ -z ${remarks} && ${name} == "test-${version//./}" ]]; then
 		remarks="test-${version}"
 	fi
@@ -249,6 +253,7 @@ create_instance() {
 	command=(env YINSTALL_SYS_PASSWORD="${SYS_PASSWORD}" "${YINSTALL_BIN}" db install --package "${package}"
 		--cluster "${cluster}" --db-port "${db_port}" --install-path "${INSTANCE_INSTALL_PATH}"
 		--data-path "${INSTANCE_DATA_PATH}" --log-path "${INSTANCE_LOG_PATH}" --stage-dir "${INSTANCE_STAGE_DIR}"
+		--db-version "${INSTANCE_VERSION}"
 		--os-user "${OS_USER}" --os-group "${OS_GROUP}"
 		--log-dir "${MYAS_LOG_DIR}/${cluster}")
 	[[ -z ${memory_size} ]] || command+=(--memory-size "${memory_size}")

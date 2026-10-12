@@ -79,6 +79,11 @@ eval "$(./myas.sh shell-init)"
 ys1703
 ```
 
+版本参数支持内部构建号：`./myas.sh create test-27112-356-gd953d3665a9
+27.1.1.2-356-gd953d3665a9 --package /tmp/yashandb-27.1.1.2-356-gd953d3665a9-linux-aarch64.tar.gz`
+会把版本原样透传给安装器，软件落在 `<install-path>/27.1.1.2-356-gd953d3665a9`，
+默认包名也按该版本推导。
+
 远程部署必须显式提供目标主机；sys 密码同样读取全局配置：
 
 ```bash

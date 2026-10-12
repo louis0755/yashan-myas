@@ -17,6 +17,7 @@ YINSTALL_CONFIG_DIR="${CONFIG_DIR}/yinstall"
 mkdir -p -- "${PACKAGE_DIR}" "${LOCAL_CHECK_BIN}"
 touch "${PACKAGE_DIR}/yashandb-23.4.14.100-linux-x86_64.tar.gz"
 touch "${PACKAGE_DIR}/yashandb-23.5.6.100-linux-x86_64.tar.gz"
+touch "${PACKAGE_DIR}/yashandb-27.1.1.2-356-gd953d3665a9-linux-x86_64.tar.gz"
 
 printf '%s\n' \
 	'#!/usr/bin/env bash' \
@@ -129,6 +130,21 @@ grep -E 'ys1847.*test-2347113' "${TMP_DIR}/dotted-version-remarks-list" >/dev/nu
 run_myas create test-2356100 23.5.6.100 --db-port 1851 --remarks custom-remarks
 run_myas list >"${TMP_DIR}/custom-remarks-list"
 grep -E 'ys1851.*custom-remarks' "${TMP_DIR}/custom-remarks-list" >/dev/null
+# Internal builds carry a build suffix; the suffix must survive verbatim so that
+# YASDB_HOME/<version>, the default package name, and the remarks all agree.
+run_myas create test-27112-356-gd953d3665a9 27.1.1.2-356-gd953d3665a9 --db-port 1859
+run_myas list >"${TMP_DIR}/build-suffix-list"
+grep -E 'ys1859.*test-27\.1\.1\.2-356-gd953d3665a9' "${TMP_DIR}/build-suffix-list" >/dev/null
+assert_contains '--package '"${PACKAGE_DIR}"'/yashandb-27.1.1.2-356-gd953d3665a9-linux-x86_64.tar.gz' "${MARKER}"
+# The full version also has to reach yinstall, which places the software under it.
+assert_contains '--db-version 27.1.1.2-356-gd953d3665a9' "${MARKER}"
+assert_contains '--db-version 23.4.14.100' "${MARKER}"
+assert_failure run_myas create baddb 27.1.1.2- --db-port 1863
+assert_failure run_myas create baddb 27.1.1.2-356- --db-port 1863
+assert_failure run_myas create baddb 27.1.1.2-356-gd953d3665a9. --db-port 1863
+assert_failure run_myas create baddb 27.1.1.2-356_gd953d3665a9 --db-port 1863
+assert_failure run_myas create baddb ../27.1.1.2 --db-port 1863
+assert_failure run_myas create baddb 27.1.1.2/../../etc --db-port 1863
 
 run_myas >"${TMP_DIR}/list"
 assert_contains 'PORT' "${TMP_DIR}/list"
