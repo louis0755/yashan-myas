@@ -241,3 +241,104 @@ SHA256 `f612c0073ca5642bbe35942d3ea9597a086f37c0c30a4d4e054b396d1b4f8ce5`。
 - 回滚点保留 `~/.local/opt/myas/myas-0.3.8`（`.4` 另有 `0.3.6`，`.13`/`.5` 另有 `0.3.7`），回滚只需把
   `current` 软链接指回并重建 `~/.local/bin/myas`。
 - 仍未执行：YINSTALL-010 的主备端到端复测、MYAS-023 的“预检 → 直接创建”复测，状态 `NOT RUN`。
+
+## 2026-10-12 myas 0.3.14 组合包发布测试（.4 / .13 / .5）
+
+对象：`myas-0.3.14.tar.gz`（myas `0.3.14` + 内置 yinstall `0.4.11`），提交 `a6313e2`
+（yinstall `7e7b33b`），tag `v0.3.14`，SHA256
+`689f1be524a35c3037bfaefdcf11d4d9a9ff612f11e4909d028b68011d3545df`。
+GitHub Release 已创建，但按 `myas/docs/RELEASE.md` 第 1 节（结论为 `PARTIAL` 时不得创建正式
+Release，候选包必须标记为非正式版本）标记为 **pre-release 候选**，未提升为正式版。
+部署方式为 `myas/docs/release/07` 的公开包路径，未使用会重建 `psftdb` 的 `tools/release.sh`。
+
+### 自动化测试
+
+`bash -n`（myas + yinstall）、`myas/tests/test_cli.sh`、`yinstall/tests/test_cli.sh`、
+`yinstall/tests/test_ports.sh`（新增端口锚定与 `--db-version` 回归用例）、`yinstall.sh --help`、
+隔离配置 `myas list` 全部返回 `0`。
+
+### 工具部署
+
+| 主机 | 架构 | 部署前 | 部署后 | 既有实例 |
+| --- | --- | --- | --- | --- |
+| `192.168.23.4` | x86_64 | `0.3.9` | `0.3.14` / yinstall `0.4.11` | 5 个实例（`ys1903`/psftdb、`ys1907`/gbkdb、`ys1950`、`ys1960`、`ys1911`/szsw）未改动 |
+| `192.168.23.13` | x86_64 | `0.3.11` | 同上 | `ys19003`、`ys19007`、`ys1911`、`ys1915` 未改动；`tpcc` 未触碰 |
+| `192.168.23.5` | aarch64 | `0.3.14`（当日早先部署） | 同上（`v0.3.14` 资产同一 SHA256） | 6 个实例未改动（含本次 `ys1919`） |
+
+`.4` 的 `~/.bashrc` 原本没有 `myas shell-init`，本次按 `release/07` 补上；`.13`/`.5` 原本已配置。
+三台机部署前均备份 `~/.myas/settings.conf`。
+
+### 测试包（`/tmp`，测试后保留）
+
+| 包 | SHA256 |
+| --- | --- |
+| `yashandb-23.4.14.105-linux-x86_64.tar.gz` | `e5bc0fe0a3f1c8a9ce1f66099ba644ff646c750867df637ea3f0af96f46e39b3` |
+| `yashandb-23.5.4.100-linux-x86_64.tar.gz` | `8c08ade64dc426c8a495b93fbb6e4d19c389469de595ad954b9e058a886d1f88` |
+| `yashandb-ai-23.5.4.100-linux-x86_64.tar.gz` | `433cc775d3f64aacbea5dfbb93a01544e3ca8d1e2776335235c64c1904368603` |
+| `yashandb-23.4.14.105-linux-aarch64.tar.gz` | `5c9f02cedc98a2c8a51288246f7477ef4e3003efadb87bcbfba06687c92f5b7b` |
+| `yashandb-23.5.4.100-linux-aarch64.tar.gz` | `c0ab7e3baed92904d721cf85bd7a56041cda146dfc8ef8af04f9e30cb525f71a` |
+| `yashandb-ai-23.5.4.100-linux-aarch64.tar.gz` | `a245b093f7ae3b3a5c2d0d4cca8125aa5eb9539a32e9ac62e8d82025142802d8` |
+
+### 包矩阵结果
+
+每个实例均先 `--precheck` 再真实创建（同参数）；`18xxx` 段端口在创建前用 `ss` 确认空闲，
+未改动 `YASOM_PORT_START`（`.4`=`1901`、`.13`=`1701`、`.5`=`1901`，测试全部显式指定端口）。
+
+| 主机 | 架构 | 包 | 版本 | DB 端口 | 预检 | 部署 | 运行状态 | 结果 |
+| --- | --- | --- | --- | ---: | --- | --- | --- | --- |
+| `192.168.23.4` | x86_64 | `yashandb-23.4.14.105-linux-x86_64` | `23.4.14.105` | 18003 | PASS | PASS | `open`/`normal`/`primary` | PASS |
+| `192.168.23.4` | x86_64 | `yashandb-23.5.4.100-linux-x86_64` | `23.5.4.100` | 18007 | PASS | FAIL | 启动失败 | FAIL（环境） |
+| `192.168.23.4` | x86_64 | `yashandb-ai-23.5.4.100-linux-x86_64` | `23.5.4.100` | 18011 | PASS | FAIL | 启动失败 | FAIL（环境） |
+| `192.168.23.13` | x86_64 | `yashandb-23.4.14.105-linux-x86_64` | `23.4.14.105` | 18003 | PASS | PASS | `open`/`normal`/`primary` | PASS |
+| `192.168.23.13` | x86_64 | `yashandb-23.5.4.100-linux-x86_64` | `23.5.4.100` | 18007 | PASS | FAIL | 启动失败 | FAIL（环境） |
+| `192.168.23.13` | x86_64 | `yashandb-ai-23.5.4.100-linux-x86_64` | `23.5.4.100` | 18011 | PASS | FAIL | 启动失败 | FAIL（环境） |
+| `192.168.23.5` | aarch64 | `yashandb-23.4.14.105-linux-aarch64` | `23.4.14.105` | 18003 | PASS | PASS | `open`/`normal`/`primary` | PASS |
+| `192.168.23.5` | aarch64 | `yashandb-23.5.4.100-linux-aarch64` | `23.5.4.100` | 18007 | PASS | FAIL | 启动失败 | FAIL（环境） |
+| `192.168.23.5` | aarch64 | `yashandb-ai-23.5.4.100-linux-aarch64` | `23.5.4.100` | 18011 | PASS | FAIL | 启动失败 | FAIL（环境） |
+
+| 覆盖项 | 主机 | 命令要点 | 结果 |
+| --- | --- | --- | --- |
+| GBK 字符集（普通包） | `.5` | `myas create rel234armgbk 23.4.14.105 --db-port 18015 --character-set GBK` | PASS，`ys18015.toml` 的 `CHARACTER_SET = "GBK"` |
+| `--use-native-type` + MySQL（普通包） | `.5` | `--db-port 18019 --mysql --mysql-port 3316 --use-native-type` | PASS，`USE_NATIVE_TYPE = true`、`mysql_addr = "192.168.23.5:3316"`，`myas info` 显示 MySQL 端口 `3316` |
+| MySQL（普通包） | `.13` | `--db-port 18015 --mysql --mysql-port 3307` | PASS，`mysql_addr = "192.168.23.13:3307"` |
+| GBK（普通包） | `.13` | 挂在 `23.5.4.100` 实例上 | NOT RUN（该包在主机上无法启动，环境限制） |
+| `--use-native-type` / MySQL（AI 包） | `.4`/`.13`/`.5` | 挂在 AI 包实例上 | NOT RUN（AI 包在主机上无法启动，环境限制） |
+
+### 配置与路径验证
+
+- 每个通过项的 `myas info` 版本与包版本一致，`listen_address` 使用指定目标 IP 与 `18xxx` 端口；
+- `hosts.toml` 的 `path` 与 `<install-path>/<版本>` 一致（本次回归确认 `--db-version` 重写对
+  `23.4.14.105` 这类版本是幂等的，目录名仍是 `23.4.14.105`）；
+- `eval "$(myas env CLUSTER)"` 的 `YASDB_HOME` 软链接指向实际安装目录；
+- `.4` 上 `--precheck` 后直接创建 12 次（三台机合计）均无 `instance already exists`，MYAS-023
+  的“预检 → 直接创建”复测转为 **PASS**。
+
+### `23.5.4.100` / AI 包失败根因（环境限制，非 myas/yinstall 缺陷）
+
+| 主机 | 平台 | 关键报错 |
+| --- | --- | --- |
+| `192.168.23.4` | CentOS 7，系统 OpenSSL `1.0.2k-fips`，无 `libssl.so.1.1` | `YAS-00509 failed to load dynamic library .../libyspi_curl.so, libssl.so.1.1: cannot open shared object file` |
+| `192.168.23.13`、`192.168.23.5` | Kylin V10，`openssl-libs-1.1.1f` | `YAS-00509 ... lib/libcrypto_yas.so: version 'OPENSSL_1_1_1f' not found (required by /usr/lib64/libssl.so.1.1)` |
+
+在 `.13`/`.5` 上核对了版本节点：系统 `libcrypto.so.1.1.1f` 与 `libssl.so.1.1.1f` 都导出
+`OPENSSL_1_1_1f`，而 `23.5.4.100` 包内 `third/openssl/libcrypto.so.1.1` 的版本节点最高到
+`OPENSSL_1_1_1e`/`OPENSSL_1_1_1h`、**没有** `OPENSSL_1_1_1f`；`libyspi_curl.so` 通过
+`libcrypto_yas.so` 解析到包内 libcrypto 后，与主机 `libssl.so.1.1` 要求的 `OPENSSL_1_1_1f`
+对不上。同一批主机上行情的 `23.5.6.100`（`.5:ys1911`、`.13:ys19007`）均 RUNNING，说明这是
+`23.5.4.100`/AI `23.5.4.100` 这两个构建包与环境组合的限制，与本次代码改动无关（MYAS-024）。
+
+### 现场保留与清理
+
+- 三台机 `/tmp` 的六个测试包全部保留；每实例日志在 `/tmp/release-test-0.3.14/<端口>.log`；
+- 通过项实例保留并 RUNNING：`.4:ys18003`、`.13:ys18003/ys18015(mysql)`、`.5:ys18003/ys18015(gbk)/ys18019(mysql+native)`；
+- 失败项实例登记为 `FAIL`、现场未删除：`.4:ys18007/ys18011`、`.13:ys18007/ys18011`、`.5:ys18007/ys18011`，待确认后按实例逐一清理；
+- `.5` 的 `ys1919`（`27.1.1.2-356-gd953d3665a9`）为本次任务要求的正式安装实例，保留不动。
+
+### 结论（2026-10-12）
+
+单机代码路径 `PASS`：三台机 `myas 0.3.14` 部署、预检、普通包 `23.4.14.105` 创建、
+GBK / `--use-native-type` / MySQL 参数下发、环境变量与目录命名全部通过；MYAS-023 复测转为 PASS。
+但 `23.5.4.100` 与 AI `23.5.4.100` 六个矩阵项在主机上均因 OpenSSL 版本节点不匹配无法启动，
+主备端到端（YINSTALL-010）与 AI 包参数覆盖 `NOT RUN`。按 `myas/docs/RELEASE.md` 与
+`release-test.md`，最终结论为 **`PARTIAL`**：`v0.3.14` 保持非正式候选（pre-release），
+待主机 OpenSSL 或 `23.5.4.100` 构建包修复后重新复测，方可提升为正式 Release。
