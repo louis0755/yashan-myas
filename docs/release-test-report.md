@@ -431,18 +431,44 @@ GitHub Release 按结论标记为 **pre-release 候选**。
   `--character-set must be ASCII, ISO88591, GBK, UTF8, or GB18030`；
 - 小写 `gbk` 被规范化为 `GBK`（`yinstall` 取值校验通过）。
 
+### 实例级验证：`.5` 的 `ys1919` 替换为 `23.4.7.113` GBK 实例（同日追加，用户要求）
+
+用户要求删除 `.5` 的 `ys1919` 并新建 `23.4.7` 的 GBK 库，本次借此完成 `release-test.md` §6
+的真实创建验证。
+
+删除对象（删除前记录）：实例 `test-27112-356-gd953d3665a9`，版本
+`27.1.1.2-356-gd953d3665a9`，端口 `1917/1918/1919/1920`，目录
+`/hdd_data/yashan/ys1919/{yasdb-home,yasdb-data,yasdb-log,install}` 与
+`~/.yasboot/ys1919*`，占用 2.7 GiB，`myas status` 为 `RUNNING` / `open` / `normal` /
+`primary`。`myas delete ys1919` 返回 `0`，`StopYasdbCluster` 任务 `SUCCESS`，登记、yasboot
+环境文件和实例目录全部清理，四端口释放。同版本实例 `ys1927` 未触碰。
+
+新建实例：`myas create test-2347113 23.4.7.113 --local --host-ip 192.168.23.5
+--package /tmp/yashandb-23.4.7.113-linux-aarch64.tar.gz --db-port 1919 --character-set GBK`，
+先 `--precheck`（无 `FAIL`、无残留登记）后真实创建，返回 `0`。
+
+| 验证项 | 结果 | 结论 |
+| --- | --- | --- |
+| 包与架构 | `yashandb-23.4.7.113-linux-aarch64.tar.gz`，控制端与 `.5` 的 `/tmp` SHA256 一致 `a1075c76f951d5c0f51615dce2de8b26f1099e96ed922e50d57561d94a63c6a8` | PASS |
+| 部署任务 | `DeployYasdbCluster` `SUCCESS`；`open`/`normal`/`primary`，`listen_address=192.168.23.5:1919` | PASS |
+| 四端口 | `1917`/`1918`/`1919`/`1920` 全部监听 | PASS |
+| 版本路径 | `yasdb-home/23.4.7.113`，`myas info` 版本与包版本一致 | PASS |
+| 字符集下发 | 集群 TOML `CHARACTER_SET = "GBK"` | PASS |
+| 字符集显示 | `myas list` 的 `CHARSET` 列为 `GBK`，`myas info` 为 `Character set: GBK` | PASS |
+| 登记字段 | `instances.tsv` 第 17 字段为 `GBK`，`mysql_port` 为空时写占位符 `__MYAS_EMPTY__` | PASS |
+| 环境变量 | `myas env ys1919` 输出 `YASHANDB_VERSION=23.4.7.113`、`YASHANDB_CLUSTER=ys1919`、`YASHANDB_PORT=1919` | PASS |
+
 ### 未执行项
 
-- 包矩阵的真实创建（`release-test.md` §5/§6）`NOT RUN`：本次未获实例创建授权，只做只读预检；
-- “`--character-set` 写入登记 → `myas list` 显示 `GBK`”的端到端路径目前仅由 `test_cli.sh` 覆盖，
-  真实主机未创建带字符集的实例；
-- `tools/release.sh` 未执行（会删除并重建 `.4` 的 `psftdb`，需单独确认）；
-- 主备测试（§8）`NOT RUN`，本次变更与主备无关。
+- `release-test.md` §5 的完整六包矩阵与 §8 主备测试 `NOT RUN`：本次只完成 `.5` 上
+  `23.4.7.113` 普通包的创建，`.4`/`.13` 未重建实例，AI 包与主备未覆盖；
+- `23.5.4.100` / AI `23.5.4.100` 的主机 OpenSSL 版本限制（MYAS-024）仍存在，矩阵未重跑；
+- `tools/release.sh` 未执行（会删除并重建 `.4` 的 `psftdb`，需单独确认）。
 
-### 结论（2026-10-12）
+### 结论（2026-10-12，同日更新）
 
-自动化测试与四台主机的部署、显示路径、环境变量验证均为 `PASS`，未发现回归；创建路径的
-参数解析、字符集校验和登记写入/清理由只读预检与自动化测试覆盖。真实创建矩阵 `NOT RUN`，
-按 `myas/docs/RELEASE.md` 第 1 节，本次结论为 **`PARTIAL`**，`v0.3.16` 以 pre-release 候选
-形式发布。在 `.4` 或 `.5` 完成一次带 `--character-set GBK` 的真实创建并确认 `myas list`
-显示 `GBK` 后，可提升为正式 Release。
+自动化测试、四台主机部署、显示路径、环境变量，以及 `.5` 上 `23.4.7.113` GBK 实例的真实
+创建（`--precheck` → 创建 → `open`/`normal`/`primary` → `myas list` 显示 `GBK`）全部为
+`PASS`，本次变更的代码路径已完整验证，未发现回归。完整六包矩阵（含 `23.5.4.100`/AI 的
+主机 OpenSSL 环境阻塞，MYAS-024）与主备测试 `NOT RUN`，按 `myas/docs/RELEASE.md` 第 1 节，
+`v0.3.16` 保持 pre-release 候选；完成 §5 矩阵复测后可提升为正式 Release。
