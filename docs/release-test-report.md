@@ -458,6 +458,14 @@ GitHub Release 按结论标记为 **pre-release 候选**。
 | 登记字段 | `instances.tsv` 第 17 字段为 `GBK`，`mysql_port` 为空时写占位符 `__MYAS_EMPTY__` | PASS |
 | 环境变量 | `myas env ys1919` 输出 `YASHANDB_VERSION=23.4.7.113`、`YASHANDB_CLUSTER=ys1919`、`YASHANDB_PORT=1919` | PASS |
 
+同日用户又要求在 `.5` 新建 GB18030 实例，作为字符集取值的第二组验证：
+`myas create test-2347113-gb18030 23.4.7.113 --local --host-ip 192.168.23.5
+--package /tmp/yashandb-23.4.7.113-linux-aarch64.tar.gz --db-port 1931 --character-set GB18030
+--remarks test-23.4.7.113-gb18030`，`--precheck` 无 `FAIL` 且无残留登记，真实创建返回 `0`。
+实例 `ys1931` 四端口 `1929`/`1930`/`1931`/`1932` 全部监听，`myas status` 为 `open`/`normal`/
+`primary`，集群 TOML 为 `CHARACTER_SET = "GB18030"`，`myas list` 的 `CHARSET` 列显示
+`GB18030`，登记第 17 字段为 `GB18030`。
+
 ### 未执行项
 
 - `release-test.md` §5 的完整六包矩阵与 §8 主备测试 `NOT RUN`：本次只完成 `.5` 上
