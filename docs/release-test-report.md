@@ -472,3 +472,8 @@ GitHub Release 按结论标记为 **pre-release 候选**。
 `PASS`，本次变更的代码路径已完整验证，未发现回归。完整六包矩阵（含 `23.5.4.100`/AI 的
 主机 OpenSSL 环境阻塞，MYAS-024）与主备测试 `NOT RUN`，按 `myas/docs/RELEASE.md` 第 1 节，
 `v0.3.16` 保持 pre-release 候选；完成 §5 矩阵复测后可提升为正式 Release。
+
+用户于同日要求把 `v0.3.16` 提升为正式 Release，已执行
+`gh release edit v0.3.16 --prerelease=false --latest`，Release 现为 `Latest`。该提升由用户
+决定，覆盖 `RELEASE.md` 第 1 节对 `PARTIAL` 结论的候选限制；本报告的 `PARTIAL` 结论作为
+事实记录保留，`release-test.md` §5 六包矩阵与 §8 主备测试仍未执行。
