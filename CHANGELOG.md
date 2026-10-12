@@ -1,5 +1,33 @@
 # 变更记录
 
+## 0.3.16 - 2026-10-12
+
+### 变更
+
+- `myas list` 当前实例的标记由 `*` 改为 `[*]`：与 `CUR` 表头等宽对齐，位置更醒目。
+
+## 0.3.15 - 2026-10-12
+
+### 新增
+
+- `myas list` 新增 `CHARSET` 列，位于 `PORT` 与 `MYSQL` 之间，显示数据库字符集。
+  `myas create --character-set` 指定的值随实例登记保存；在记录字符集之前创建的实例
+  改读 `<stage-dir>/<cluster>.toml` 的 `CHARACTER_SET`，因此已有的 `GBK` 库和
+  yasboot 默认值（`utf8`）都能正确显示，统一按大写输出；两处都取不到时显示 `-`。
+- `myas info` 增加 `Character set` 一行，与 `myas list` 显示同一个值。
+- `myas create --character-set` 校验并规范化为大写（`ASCII`、`ISO88591`、`GBK`、
+  `UTF8`、`GB18030`），与 yinstall 的取值保持一致，避免把无效值写进实例登记。
+
+### 变更
+
+- `myas list` 的 `CURRENT` 列缩写为 `CUR` 并移到第一列，当前实例仍以 `*` 标记。
+- `myas list` 的 `VERSION` 列只保留发布版本和构建序号（`27.1.1.2-356`）。带构建后缀
+  的内部构建包此前会写出 27 字符的版本号，撑开列宽并使其后各列错位；完整版本号仍可
+  从 `REMARKS` 和 `myas info` 读取，`REMARKS` 未包含完整版本号时由 `myas list` 补齐。
+- `~/.myas/instances.tsv` 增加第 17 个字段 `character_set`，`mysql_port` 和
+  `character_set` 为空时写入 `__MYAS_EMPTY__` 占位符：`read` 会把连续的制表符合并成
+  一个分隔符，中间的空字段无法回读。16 字段的旧记录继续按原样读取。
+
 ## 0.3.14 - 2026-10-12
 
 ### 新增
