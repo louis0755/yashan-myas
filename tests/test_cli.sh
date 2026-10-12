@@ -117,7 +117,8 @@ assert_contains 'no instance registration was kept' "${TMP_DIR}/dry-run-output"
 run_myas create nativedb 23.4.14.100 --db-port 1823 --use-native-type
 assert_contains '--use-native-type' "${MARKER}"
 run_myas create gbkdb 23.4.14.100 --db-port 1827 --character-set gbk
-assert_contains '--character-set gbk' "${MARKER}"
+assert_contains '--character-set GBK' "${MARKER}"
+run_myas create customdb 27.1.1.2-356-gd953d3665a9 --db-port 1867 --remarks custom-build
 run_myas create hadb 23.4.14.100 --target 10.0.0.11 --db-port 1835 --host-ip 10.0.0.11 --standbys 10.0.0.12
 assert_contains '--standbys 10.0.0.12' "${MARKER}"
 run_myas create test-23414100 23.4.14.100 --db-port 1843
@@ -146,12 +147,27 @@ assert_failure run_myas create baddb 27.1.1.2-356_gd953d3665a9 --db-port 1863
 assert_failure run_myas create baddb ../27.1.1.2 --db-port 1863
 assert_failure run_myas create baddb 27.1.1.2/../../etc --db-port 1863
 
+# Instances registered before the character set was recorded keep the effective
+# value in the generated cluster configuration; the list falls back to reading it.
+printf '%s\n' '[group.config]' '    CHARACTER_SET = "utf8"' >"${TMP_DIR}/instances/ys1703/install/ys1703.toml"
 run_myas >"${TMP_DIR}/list"
 assert_contains 'PORT' "${TMP_DIR}/list"
 assert_contains 'ys1703' "${TMP_DIR}/list"
 assert_contains 'appdb' "${TMP_DIR}/list"
 assert_contains 'Yes (3310)' "${TMP_DIR}/list"
 grep -E 'ys1703.*INSTALLED' "${TMP_DIR}/list" >/dev/null
+# The current instance is marked in the first column, and CHARSET follows PORT.
+grep -E '^CUR +NAME +VERSION +PORT +CHARSET +MYSQL +STATUS +REMARKS$' "${TMP_DIR}/list" >/dev/null
+grep -E 'ys1703 +23\.4\.14\.100 +1703 +UTF8' "${TMP_DIR}/list" >/dev/null
+grep -E 'ys1827 +23\.4\.14\.100 +1827 +GBK' "${TMP_DIR}/list" >/dev/null
+# Internal builds keep only the release version and build number in VERSION; the
+# full version stays readable through REMARKS.
+grep -E 'ys1859 +27\.1\.1\.2-356 +1859 +- +No +INSTALLED +test-27\.1\.1\.2-356-gd953d3665a9$' "${TMP_DIR}/list" >/dev/null
+grep -E 'ys1867 +27\.1\.1\.2-356 +1867 +- +No +INSTALLED +custom-build 27\.1\.1\.2-356-gd953d3665a9$' "${TMP_DIR}/list" >/dev/null
+if grep -E 'ys1859 +27\.1\.1\.2-356-gd953d3665a9' "${TMP_DIR}/list" >/dev/null; then
+	echo 'the VERSION column must not repeat the build suffix' >&2
+	exit 1
+fi
 if grep -F 'ys1819' "${TMP_DIR}/list" >/dev/null; then
 	echo 'dry-run left an instance registration behind' >&2
 	exit 1
@@ -161,12 +177,17 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	"printf '%s\\n' '${TMP_DIR}/instances/ys1703/yasdb-home/23.4.14.100/bin/yasdb nomount -D ${TMP_DIR}/instances/ys1703/yasdb-data/db-1-1'" >"${FAKE_PS}"
 env MYAS_CONFIG_DIR="${CONFIG_DIR}" MYAS_TEST_MARKER="${MARKER}" MYAS_PS_BIN="${FAKE_PS}" YASHANDB_CLUSTER=ys1703 \
 	"${ROOT_DIR}/myas.sh" list >"${TMP_DIR}/running-list"
-grep -E 'ys1703.*RUNNING.*\*' "${TMP_DIR}/running-list" >/dev/null
+grep -E '^\[\*\] +ys1703 .*RUNNING' "${TMP_DIR}/running-list" >/dev/null
+if grep -E '^ +ys1703 .*RUNNING' "${TMP_DIR}/running-list" >/dev/null; then
+	echo 'the current instance must be marked in the CUR column' >&2
+	exit 1
+fi
 assert_contains $'appdb\t23.4.14.100\tys1703\t1703\t1701\t1702\t1704' "${CONFIG_DIR}/instances.tsv"
 assert_contains $'localdb\t23.4.14.100\tys1803\t1803\t1801\t1802\t1804\tlocal' "${CONFIG_DIR}/instances.tsv"
 assert_contains $'nextdb\t23.4.14.100\tys1807\t1807\t1805\t1806\t1808\tlocal' "${CONFIG_DIR}/instances.tsv"
 assert_contains $'mysqldb\t23.4.14.100\tys1815\t1815\t1813\t1814\t1816\tlocal' "${CONFIG_DIR}/instances.tsv"
-grep -F $'\tINSTALLED\t__MYAS_EMPTY__\t3310' "${CONFIG_DIR}/instances.tsv" >/dev/null
+grep -F $'\tINSTALLED\t__MYAS_EMPTY__\t3310\t__MYAS_EMPTY__' "${CONFIG_DIR}/instances.tsv" >/dev/null
+grep -F $'\tINSTALLED\t__MYAS_EMPTY__\t__MYAS_EMPTY__\tGBK' "${CONFIG_DIR}/instances.tsv" >/dev/null
 assert_contains $'\tINSTALLED\t' "${CONFIG_DIR}/instances.tsv"
 assert_contains 'db install --package' "${MARKER}"
 assert_contains '--local' "${MARKER}"

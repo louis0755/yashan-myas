@@ -107,6 +107,20 @@ ys1703
 切换环境后可使用 `ystatus`、`ystart`、`yshutdown` 和 `yrestart`。运行
 `tests/test_cli.sh` 执行快速 CLI 测试。
 
+实例清单（`./myas.sh` 或 `./myas.sh list`）的列顺序为：
+
+```text
+CUR  NAME  VERSION  PORT  CHARSET  MYSQL  STATUS  REMARKS
+```
+
+- `CUR` 为 `[*]` 表示当前 Shell 的 `YASHANDB_CLUSTER` 指向该实例；
+- `CHARSET` 是数据库字符集。实例登记该值时直接显示；在记录字符集之前创建的实例，
+  从 `<stage-dir>/<cluster>.toml` 的 `CHARACTER_SET` 读取；两处都取不到时显示 `-`；
+- `VERSION` 只保留发布版本和构建序号（`27.1.1.2-356`），带构建后缀的内部构建包由
+  `REMARKS` 补齐完整版本号（`27.1.1.2-356-gd953d3665a9`）。
+
+`./myas.sh info NAME_OR_CLUSTER` 显示同一份登记信息，并给出 `Character set` 等细节。
+
 删除本地实例使用交互式 `delete`，只支持本地实例，展示范围并在输入 `y` 后清理：
 
 ```bash

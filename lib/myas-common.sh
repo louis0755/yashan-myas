@@ -96,7 +96,7 @@ ensure_storage() {
 	fi
 	chmod 600 -- "${SETTINGS_FILE}"
 	if [[ ! -f ${INSTANCES_FILE} ]]; then
-		printf '%s\n' '# name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port' >"${INSTANCES_FILE}"
+		printf '%s\n' '# name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port character_set' >"${INSTANCES_FILE}"
 	fi
 }
 
@@ -168,12 +168,13 @@ reset_instance() {
 	INSTANCE_PACKAGE=""
 	INSTANCE_STATUS=""
 	INSTANCE_REMARKS=""
+	INSTANCE_CHARACTER_SET=""
 }
 
 load_instance() {
-	local query=$1 name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port
+	local query=$1 name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port character_set
 	reset_instance
-	while IFS=$'\t' read -r name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port || [[ -n ${name} ]]; do
+	while IFS=$'\t' read -r name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port character_set || [[ -n ${name} ]]; do
 		[[ -z ${name} || ${name} == \#* ]] && continue
 		if [[ ${name} == "${query}" || ${cluster} == "${query}" ]]; then
 			INSTANCE_NAME=${name}
@@ -184,6 +185,7 @@ load_instance() {
 			INSTANCE_YASAGENT_PORT=${yasagent_port}
 			INSTANCE_REPLICAT_PORT=${replicat_port}
 			INSTANCE_MYSQL_PORT=${mysql_port}
+			[[ ${INSTANCE_MYSQL_PORT} != __MYAS_EMPTY__ ]] || INSTANCE_MYSQL_PORT=""
 			INSTANCE_TARGET=${target}
 			INSTANCE_INSTALL_PATH=${install_path}
 			INSTANCE_DATA_PATH=${data_path}
@@ -193,6 +195,8 @@ load_instance() {
 			INSTANCE_STATUS=${status}
 			INSTANCE_REMARKS=${remarks}
 			[[ ${INSTANCE_REMARKS} != __MYAS_EMPTY__ ]] || INSTANCE_REMARKS=""
+			INSTANCE_CHARACTER_SET=${character_set}
+			[[ ${INSTANCE_CHARACTER_SET} != __MYAS_EMPTY__ ]] || INSTANCE_CHARACTER_SET=""
 			return 0
 		fi
 	done <"${INSTANCES_FILE}"
@@ -200,11 +204,14 @@ load_instance() {
 }
 
 append_instance() {
-	printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+	# "read" collapses runs of IFS whitespace and a tab is IFS whitespace, so an
+	# empty field followed by a value cannot be read back. The optional trailing
+	# fields therefore use the same placeholder as remarks.
+	printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
 		"${INSTANCE_NAME}" "${INSTANCE_VERSION}" "${INSTANCE_CLUSTER}" "${INSTANCE_DB_PORT}" \
 		"${INSTANCE_YASOM_PORT}" "${INSTANCE_YASAGENT_PORT}" "${INSTANCE_REPLICAT_PORT}" \
 		"${INSTANCE_TARGET}" "${INSTANCE_INSTALL_PATH}" "${INSTANCE_DATA_PATH}" "${INSTANCE_LOG_PATH}" \
-		"${INSTANCE_STAGE_DIR}" "${INSTANCE_PACKAGE}" "${INSTANCE_STATUS}" "${INSTANCE_REMARKS:-__MYAS_EMPTY__}" "${INSTANCE_MYSQL_PORT}" >>"${INSTANCES_FILE}"
+		"${INSTANCE_STAGE_DIR}" "${INSTANCE_PACKAGE}" "${INSTANCE_STATUS}" "${INSTANCE_REMARKS:-__MYAS_EMPTY__}" "${INSTANCE_MYSQL_PORT:-__MYAS_EMPTY__}" "${INSTANCE_CHARACTER_SET:-__MYAS_EMPTY__}" >>"${INSTANCES_FILE}"
 }
 
 update_instance_status() {
@@ -212,11 +219,11 @@ update_instance_status() {
 	temp_file=$(mktemp "${MYAS_CONFIG_DIR}/instances.XXXXXX")
 	while IFS= read -r name || [[ -n ${name} ]]; do
 		if [[ ${name} == "${INSTANCE_NAME}"$'\t'* ]]; then
-			printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+			printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
 				"${INSTANCE_NAME}" "${INSTANCE_VERSION}" "${INSTANCE_CLUSTER}" "${INSTANCE_DB_PORT}" \
 				"${INSTANCE_YASOM_PORT}" "${INSTANCE_YASAGENT_PORT}" "${INSTANCE_REPLICAT_PORT}" \
 				"${INSTANCE_TARGET}" "${INSTANCE_INSTALL_PATH}" "${INSTANCE_DATA_PATH}" "${INSTANCE_LOG_PATH}" \
-				"${INSTANCE_STAGE_DIR}" "${INSTANCE_PACKAGE}" "${status}" "${INSTANCE_REMARKS:-__MYAS_EMPTY__}" "${INSTANCE_MYSQL_PORT}" >>"${temp_file}"
+				"${INSTANCE_STAGE_DIR}" "${INSTANCE_PACKAGE}" "${status}" "${INSTANCE_REMARKS:-__MYAS_EMPTY__}" "${INSTANCE_MYSQL_PORT:-__MYAS_EMPTY__}" "${INSTANCE_CHARACTER_SET:-__MYAS_EMPTY__}" >>"${temp_file}"
 		else
 			printf '%s\n' "${name}" >>"${temp_file}"
 		fi
@@ -234,10 +241,11 @@ remove_instance_registration() {
 
 port_group_available() {
 	local db_port=$1 mysql_port=${2:-} yasom_port=$((db_port - 2)) yasagent_port=$((db_port - 1)) replicat_port=$((db_port + 1))
-	local name version cluster existing_db existing_yasom existing_yasagent existing_replicat target install_path data_path log_path stage_dir package status remarks existing_mysql
+	local name version cluster existing_db existing_yasom existing_yasagent existing_replicat target install_path data_path log_path stage_dir package status remarks existing_mysql existing_character_set
 	local candidate_port existing_port
-	while IFS=$'\t' read -r name version cluster existing_db existing_yasom existing_yasagent existing_replicat target install_path data_path log_path stage_dir package status remarks existing_mysql || [[ -n ${name} ]]; do
+	while IFS=$'\t' read -r name version cluster existing_db existing_yasom existing_yasagent existing_replicat target install_path data_path log_path stage_dir package status remarks existing_mysql existing_character_set || [[ -n ${name} ]]; do
 		[[ -z ${name} || ${name} == \#* ]] && continue
+		[[ ${existing_mysql} != __MYAS_EMPTY__ ]] || existing_mysql=""
 		for candidate_port in "${yasom_port}" "${yasagent_port}" "${db_port}" "${replicat_port}" ${mysql_port:+"${mysql_port}"}; do
 			for existing_port in "${existing_yasom}" "${existing_yasagent}" "${existing_db}" "${existing_replicat}" ${existing_mysql:+"${existing_mysql}"}; do
 				[[ ${candidate_port} != "${existing_port}" ]] || return 1
@@ -260,9 +268,10 @@ next_available_mysql_port() {
 }
 
 managed_port_available() {
-	local candidate=$1 name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port existing_port
-	while IFS=$'\t' read -r name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port || [[ -n ${name} ]]; do
+	local candidate=$1 name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port character_set existing_port
+	while IFS=$'\t' read -r name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port character_set || [[ -n ${name} ]]; do
 		[[ -z ${name} || ${name} == \#* ]] && continue
+		[[ ${mysql_port} != __MYAS_EMPTY__ ]] || mysql_port=""
 		for existing_port in "${yasom_port}" "${yasagent_port}" "${db_port}" "${replicat_port}" ${mysql_port:+"${mysql_port}"}; do
 			[[ ${candidate} != "${existing_port}" ]] || return 1
 		done

@@ -55,19 +55,68 @@ instance_display_status() {
 	fi
 }
 
+# Internal builds carry a build suffix (27.1.1.2-356-gd953d3665a9). The list keeps
+# only the release version and the build number so the column stays aligned; the
+# full version remains readable through REMARKS and "myas info".
+instance_short_version() {
+	local version=$1
+	if [[ ${version} =~ ^([0-9]+(\.[0-9]+)+-[0-9]+)- ]]; then
+		printf '%s' "${BASH_REMATCH[1]}"
+	else
+		printf '%s' "${version}"
+	fi
+}
+
+# Instances registered before the character set was recorded keep the effective
+# value in the generated cluster configuration. Reading that file reports the real
+# value for them without connecting to the database.
+instance_configured_character_set() {
+	local stage_dir=$1 cluster=$2 toml
+	[[ -n ${stage_dir} && -n ${cluster} ]] || return 1
+	toml="${stage_dir}/${cluster}.toml"
+	[[ -f ${toml} ]] || return 1
+	awk '
+		/^[[:space:]]*CHARACTER_SET[[:space:]]*=/ {
+			value = $0
+			sub(/^[^=]*=[[:space:]]*/, "", value)
+			gsub(/["[:space:]]/, "", value)
+			print toupper(value)
+			exit
+		}
+	' "${toml}"
+}
+
+instance_display_character_set() {
+	local value=$1 stage_dir=$2 cluster=$3
+	if [[ -z ${value} ]]; then
+		value=$(instance_configured_character_set "${stage_dir}" "${cluster}") || value=""
+	fi
+	[[ -n ${value} ]] || value="-"
+	printf '%s' "${value}"
+}
+
 list_instances() {
-	local current_cluster=${YASHANDB_CLUSTER:-} remarks current mysql_display display_status
-	printf '%-16s %-14s %-8s %-12s %-12s %-20s %s\n' NAME VERSION PORT MYSQL STATUS REMARKS CURRENT
-	while IFS=$'\t' read -r name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port || [[ -n ${name} ]]; do
+	local current_cluster=${YASHANDB_CLUSTER:-} remarks current mysql_display display_status character_set character_set_display short_version
+	printf '%-4s %-16s %-14s %-8s %-8s %-12s %-12s %s\n' CUR NAME VERSION PORT CHARSET MYSQL STATUS REMARKS
+	while IFS=$'\t' read -r name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port character_set || [[ -n ${name} ]]; do
 		[[ -z ${name} || ${name} == \#* ]] && continue
 		current=""
-		[[ ${cluster} == "${current_cluster}" ]] && current='*'
+		[[ ${cluster} == "${current_cluster}" ]] && current='[*]'
 		[[ ${remarks} != __MYAS_EMPTY__ ]] || remarks=""
 		[[ -n ${remarks} ]] || remarks=${name}
+		[[ ${mysql_port} != __MYAS_EMPTY__ ]] || mysql_port=""
+		[[ ${character_set} != __MYAS_EMPTY__ ]] || character_set=""
+		short_version=$(instance_short_version "${version}")
+		# The truncated build suffix must stay readable, so REMARKS carries the full
+		# version whenever it is not part of the remarks already.
+		if [[ ${short_version} != "${version}" && ${remarks} != *"${version}"* ]]; then
+			remarks="${remarks} ${version}"
+		fi
+		character_set_display=$(instance_display_character_set "${character_set}" "${stage_dir}" "${cluster}")
 		mysql_display="No"
 		[[ -z ${mysql_port} ]] || mysql_display="Yes (${mysql_port})"
 		display_status=$(instance_display_status "${status}" "${data_path}")
-		printf '%-16s %-14s %-8s %-12s %-12s %-20s %s\n' "${cluster}" "${version}" "${db_port}" "${mysql_display}" "${display_status}" "${remarks}" "${current}"
+		printf '%-4s %-16s %-14s %-8s %-8s %-12s %-12s %s\n' "${current}" "${cluster}" "${short_version}" "${db_port}" "${character_set_display}" "${mysql_display}" "${display_status}" "${remarks}"
 	done <"${INSTANCES_FILE}"
 }
 
@@ -81,6 +130,7 @@ show_instance() {
 	printf 'Target:        %s\n' "${INSTANCE_TARGET}"
 	printf 'Status:        %s\n' "${display_status}"
 	printf 'Lifecycle:     %s\n' "${INSTANCE_STATUS}"
+	printf 'Character set: %s\n' "$(instance_display_character_set "${INSTANCE_CHARACTER_SET}" "${INSTANCE_STAGE_DIR}" "${INSTANCE_CLUSTER}")"
 	printf 'Yasom port:    %s\n' "${INSTANCE_YASOM_PORT}"
 	printf 'Yasagent port: %s\n' "${INSTANCE_YASAGENT_PORT}"
 	printf 'YashanDB port: %s\n' "${INSTANCE_DB_PORT}"
@@ -204,6 +254,15 @@ create_instance() {
 	fi
 	is_port "${db_port}" && ((db_port >= 3 && db_port <= 65534)) || die "--db-port must allow two lower and one higher port"
 	is_safe_field "${remarks}" || die "remarks cannot contain tabs or newlines"
+	# The value is persisted and passed to yinstall, which accepts only these
+	# character sets; normalizing here keeps the registration canonical.
+	if [[ -n ${character_set} ]]; then
+		character_set=${character_set^^}
+		case ${character_set} in
+		ASCII | ISO88591 | GBK | UTF8 | GB18030) ;;
+		*) die "--character-set must be ASCII, ISO88591, GBK, UTF8, or GB18030" ;;
+		esac
+	fi
 	[[ -z ${memory_size} || ${memory_size} =~ ^[1-9][0-9]*([MmGg])?$ ]] || die "--memory-size must be an integer with optional M or G suffix"
 	if [[ ${mysql_mode} == true ]]; then
 		[[ -n ${mysql_port} ]] || mysql_port=$(next_available_mysql_port)
@@ -233,6 +292,7 @@ create_instance() {
 	INSTANCE_YASAGENT_PORT=$((db_port - 1))
 	INSTANCE_REPLICAT_PORT=$((db_port + 1))
 	INSTANCE_MYSQL_PORT=${mysql_port}
+	INSTANCE_CHARACTER_SET=${character_set}
 	INSTANCE_TARGET=${target}
 	INSTANCE_INSTALL_PATH="${db_basedir}/yasdb-home"
 	INSTANCE_DATA_PATH="${db_basedir}/yasdb-data"
