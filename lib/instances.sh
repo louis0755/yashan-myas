@@ -98,7 +98,7 @@ instance_display_character_set() {
 list_instances() {
 	local current_cluster=${YASHANDB_CLUSTER:-} remarks current mysql_display display_status character_set character_set_display short_version
 	printf '%-4s %-16s %-14s %-8s %-8s %-12s %-12s %s\n' CUR NAME VERSION PORT CHARSET MYSQL STATUS REMARKS
-	while IFS=$'\t' read -r name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port character_set || [[ -n ${name} ]]; do
+	while IFS=$'\t' read -r name version cluster db_port yasom_port yasagent_port replicat_port target install_path data_path log_path stage_dir package status remarks mysql_port character_set legacy || [[ -n ${name} ]]; do
 		[[ -z ${name} || ${name} == \#* ]] && continue
 		current=""
 		[[ ${cluster} == "${current_cluster}" ]] && current='[*]'
@@ -128,6 +128,7 @@ show_instance() {
 	printf 'Version:       %s\n' "${INSTANCE_VERSION}"
 	printf 'Cluster:       %s\n' "${INSTANCE_CLUSTER}"
 	printf 'Target:        %s\n' "${INSTANCE_TARGET}"
+	[[ -z ${INSTANCE_LEGACY} ]] || printf 'Install mode:  legacy (22.2-era package, no 23.x layout)\n'
 	printf 'Status:        %s\n' "${display_status}"
 	printf 'Lifecycle:     %s\n' "${INSTANCE_STATUS}"
 	printf 'Character set: %s\n' "$(instance_display_character_set "${INSTANCE_CHARACTER_SET}" "${INSTANCE_STAGE_DIR}" "${INSTANCE_CLUSTER}")"
@@ -138,23 +139,60 @@ show_instance() {
 	[[ -z ${INSTANCE_MYSQL_PORT} ]] || printf 'MySQL port:    %s\n' "${INSTANCE_MYSQL_PORT}"
 	printf 'Install path:  %s\n' "${INSTANCE_INSTALL_PATH}"
 	printf 'Data path:     %s\n' "${INSTANCE_DATA_PATH}"
-	printf 'Log path:      %s\n' "${INSTANCE_LOG_PATH}"
+	if [[ -z ${INSTANCE_LEGACY} ]]; then
+		printf 'Log path:      %s\n' "${INSTANCE_LOG_PATH}"
+	else
+		# Legacy yasboot ignores --log-path, so report the directory it really uses.
+		printf 'Log path:      %s\n' "$(legacy_log_path "$(legacy_yasdb_home)" "${INSTANCE_LOG_PATH}")"
+	fi
 	printf 'Stage path:    %s\n' "${INSTANCE_STAGE_DIR}"
 	printf 'Package:       %s\n' "${INSTANCE_PACKAGE}"
 	[[ -z ${INSTANCE_REMARKS} ]] || printf 'Remarks:       %s\n' "${INSTANCE_REMARKS}"
 }
 
+# Legacy (22.2-era) yasboot installs the software under <install-path>/yashandb/<version>
+# and writes no 23.x ~/.yasboot/<cluster>_yasdb_home bashrc, so the home is discovered
+# from the filesystem instead of assumed.
+legacy_yasdb_home() {
+	local candidate
+	for candidate in "${INSTANCE_INSTALL_PATH}/yashandb/${INSTANCE_VERSION}" \
+		"${INSTANCE_INSTALL_PATH}/${INSTANCE_VERSION}" "${INSTANCE_INSTALL_PATH}"; do
+		if [[ -x ${candidate}/bin/yasdb ]]; then
+			printf '%s' "${candidate}"
+			return 0
+		fi
+	done
+	printf '%s' "${INSTANCE_INSTALL_PATH}/yashandb/${INSTANCE_VERSION}"
+}
+
+# Legacy (22.2-era) yasboot ignores --log-path and writes logs under
+# <yasdb-home>/log/<cluster>, so the effective directory is reported instead of the
+# recorded one. The recorded value stays the fallback when the tree is not there yet.
+legacy_log_path() {
+	local yasdb_home=$1 recorded=$2
+	if [[ -n ${yasdb_home} && -d ${yasdb_home}/log ]]; then
+		printf '%s' "${yasdb_home}/log"
+	else
+		printf '%s' "${recorded}"
+	fi
+}
+
 emit_environment() {
 	load_instance "$1" || die "unknown instance or cluster: $1"
-	local yasboot_env="${HOME}/.yasboot/${INSTANCE_CLUSTER}_yasdb_home/conf/${INSTANCE_CLUSTER}.bashrc" display_status
+	local yasboot_env="${HOME}/.yasboot/${INSTANCE_CLUSTER}_yasdb_home/conf/${INSTANCE_CLUSTER}.bashrc" display_status yasdb_home log_path="${INSTANCE_LOG_PATH}"
 	display_status=$(instance_display_status "${INSTANCE_STATUS}" "${INSTANCE_DATA_PATH}")
 	if [[ -f ${yasboot_env} ]]; then
 		printf 'source %q\n' "${yasboot_env}"
 	else
-		printf 'export YASDB_HOME=%q\n' "${INSTANCE_INSTALL_PATH}/${INSTANCE_VERSION}"
+		yasdb_home="${INSTANCE_INSTALL_PATH}/${INSTANCE_VERSION}"
+		if [[ -n ${INSTANCE_LEGACY} ]]; then
+			yasdb_home=$(legacy_yasdb_home)
+			log_path=$(legacy_log_path "${yasdb_home}" "${INSTANCE_LOG_PATH}")
+		fi
+		printf 'export YASDB_HOME=%q\n' "${yasdb_home}"
 		printf 'export YASDB_DATA=%q\n' "${INSTANCE_DATA_PATH}/db-1-1"
-		printf 'export PATH=%q:$PATH\n' "${INSTANCE_INSTALL_PATH}/${INSTANCE_VERSION}/bin"
-		printf 'export LD_LIBRARY_PATH=%q:${LD_LIBRARY_PATH:-}\n' "${INSTANCE_INSTALL_PATH}/${INSTANCE_VERSION}/lib"
+		printf 'export PATH=%q:$PATH\n' "${yasdb_home}/bin"
+		printf 'export LD_LIBRARY_PATH=%q:${LD_LIBRARY_PATH:-}\n' "${yasdb_home}/lib"
 	fi
 	printf 'export YASHANDB_NAME=%q\n' "${INSTANCE_NAME}"
 	printf 'export YASHANDB_VERSION=%q\n' "${INSTANCE_VERSION}"
@@ -166,7 +204,7 @@ emit_environment() {
 	[[ -z ${INSTANCE_MYSQL_PORT} ]] || printf 'export YASHANDB_MYSQL_PORT=%q\n' "${INSTANCE_MYSQL_PORT}"
 	printf 'export YASHANDB_HOME=%q\n' "${INSTANCE_INSTALL_PATH}"
 	printf 'export YASHANDB_DATA=%q\n' "${INSTANCE_DATA_PATH}"
-	printf 'export YASHANDB_LOG=%q\n' "${INSTANCE_LOG_PATH}"
+	printf 'export YASHANDB_LOG=%q\n' "${log_path}"
 	printf 'export MYAS_YASBOOT=%q\n' "${INSTANCE_STAGE_DIR}/bin/yasboot"
 	printf 'alias ystatus=%q\n' "${MYAS_BIN} status ${INSTANCE_CLUSTER}"
 	printf 'alias ystart=%q\n' "${MYAS_BIN} start ${INSTANCE_CLUSTER}"
@@ -201,7 +239,7 @@ emit_shell_init() {
 create_instance() {
 	local name=$1 version=$2
 	shift 2
-	local target="" db_port="" package="" remarks="" memory_size="${MEMORY_SIZE}" precheck=false dry_run=false force=false local_mode=true local_explicit=false use_native_type=false character_set="" standbys=""
+	local target="" db_port="" package="" remarks="" memory_size="${MEMORY_SIZE}" memory_size_explicit=false precheck=false dry_run=false force=false local_mode=true local_explicit=false use_native_type=false character_set="" standbys="" legacy=false
 	local mysql_mode=false mysql_port="" host_ip=""
 	while (($#)); do
 		case "$1" in
@@ -223,7 +261,8 @@ create_instance() {
 		--precheck) precheck=true; shift ;;
 		--dry-run) dry_run=true; shift ;;
 		--force) force=true; shift ;;
-		--memory-size) memory_size=${2:?missing value for $1}; shift 2 ;;
+		--memory-size) memory_size=${2:?missing value for $1}; memory_size_explicit=true; shift 2 ;;
+		--legacy) legacy=true; shift ;;
 		--mysql) mysql_mode=true; shift ;;
 		--mysql-port) mysql_mode=true; mysql_port=${2:?missing value for $1}; shift 2 ;;
 		--use-native-type) use_native_type=true; shift ;;
@@ -264,6 +303,25 @@ create_instance() {
 		esac
 	fi
 	[[ -z ${memory_size} || ${memory_size} =~ ^[1-9][0-9]*([MmGg])?$ ]] || die "--memory-size must be an integer with optional M or G suffix"
+	# --legacy selects the 22.2-era install flow (flat package, "package config gen
+	# --yas-type SE", "package install -i PACKAGE"). That flow is single node and has
+	# no MySQL mode, native-type switch, or memory sizing, so those combinations are
+	# rejected here instead of failing later inside yasboot. A globally configured
+	# MEMORY_SIZE is a default rather than a request, so it is reported and dropped.
+	if [[ ${legacy} == true ]]; then
+		[[ -z ${standbys} ]] || die "--legacy supports single-node installation only"
+		[[ ${mysql_mode} == false ]] || die "--legacy does not support --mysql/--mysql-port"
+		[[ ${use_native_type} == false ]] || die "--legacy does not support --use-native-type"
+		[[ ${memory_size_explicit} == false ]] || die "--legacy does not support --memory-size"
+		[[ -z ${memory_size} ]] || printf 'note: ignoring MEMORY_SIZE=%s for the legacy install; 22.2-era packages use the product default\n' "${memory_size}" >&2
+		memory_size=""
+		# 22.2-era releases accept ASCII, ISO88591, GBK, and UTF8 only; GB18030 is a
+		# 23.x character set and would only fail later inside yasboot.
+		case ${character_set} in
+		"" | ASCII | ISO88591 | GBK | UTF8) ;;
+		*) die "--legacy does not support --character-set ${character_set} (22.2-era releases accept ASCII, ISO88591, GBK, UTF8)" ;;
+		esac
+	fi
 	if [[ ${mysql_mode} == true ]]; then
 		[[ -n ${mysql_port} ]] || mysql_port=$(next_available_mysql_port)
 		is_port "${mysql_port}" || die "--mysql-port must be a valid port"
@@ -293,6 +351,8 @@ create_instance() {
 	INSTANCE_REPLICAT_PORT=$((db_port + 1))
 	INSTANCE_MYSQL_PORT=${mysql_port}
 	INSTANCE_CHARACTER_SET=${character_set}
+	INSTANCE_LEGACY=""
+	[[ ${legacy} == false ]] || INSTANCE_LEGACY="legacy"
 	INSTANCE_TARGET=${target}
 	INSTANCE_INSTALL_PATH="${db_basedir}/yasdb-home"
 	INSTANCE_DATA_PATH="${db_basedir}/yasdb-data"
@@ -320,6 +380,7 @@ create_instance() {
 	[[ ${mysql_mode} == false ]] || command+=(--mode mysql --mysql-port "${mysql_port}")
 	[[ ${use_native_type} == false ]] || command+=(--use-native-type)
 	[[ -z ${character_set} ]] || command+=(--character-set "${character_set}")
+	[[ ${legacy} == false ]] || command+=(--legacy)
 	[[ -z ${host_ip} ]] || command+=(--host-ip "${host_ip}")
 	[[ -z ${standbys} ]] || command+=(--standbys "${standbys}")
 	if [[ ${local_mode} == true ]]; then

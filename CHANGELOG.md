@@ -1,5 +1,48 @@
 # 变更记录
 
+## 0.3.20 - 2026-10-13
+
+### 修复
+
+- legacy 实例的日志目录改为报告实际生效的位置：22.2 版 yasboot 不写 `--log-path`
+  指定的目录，而是把日志放在 `<yasdb-home>/log/<cluster>`（例如
+  `/data/yashan/ys1919/yasdb-home/yashandb/22.2.16.101/log/ys1919/db-1-1/run/run.log`）。
+  `myas env` 的 `YASHANDB_LOG` 与 `myas info` 的 `Log path` 现在输出该目录；该目录不存在时
+  回退到登记里的 `--log-path` 值（例如安装尚未完成时）。23.x 实例行为不变。
+- `tests/test_cli.sh` 增加对应用例：legacy 实例的 env/info 报告 `<yasdb-home>/log`，
+  且不再输出未被使用的 `--log-path`。
+
+## 0.3.19 - 2026-10-13
+
+### 文档
+
+- `myas --help` 的 `--legacy` 说明补上字符集限制（`ASCII`/`ISO88591`/`GBK`/`UTF8`，无
+  `GB18030`），与 0.3.18 的校验行为一致，仅帮助文本补齐。
+
+## 0.3.18 - 2026-10-13
+
+### 修复
+
+- `myas create --legacy --character-set GB18030` 现在直接报错：22.2 系列的建库字符集只有
+  `ASCII`、`ISO88591`、`GBK`、`UTF8`，`GB18030` 是 23.x 才支持的取值。此前该组合会通过
+  参数校验、写进 `hosts.toml`/`<cluster>.toml`，到 `cluster deploy` 阶段才失败。
+- `tests/test_cli.sh` 增加对应用例。
+
+## 0.3.17 - 2026-10-13
+
+### 新增
+
+- 新增 `myas create --legacy`：安装 22.2 这类老版本安装包，把 `--legacy` 透传给 yinstall
+  的同一选项（见 yinstall 0.4.12）。该模式只支持单机，`--standbys`、`--mysql`/`--mysql-port`、
+  `--use-native-type`、`--memory-size` 会被明确拒绝；配置里全局的 `MEMORY_SIZE` 属于默认值
+  而不是本次请求，因此改为打印提示后忽略，不阻断创建。
+- `~/.myas/instances.tsv` 增加第 18 个字段 `legacy`（`legacy` 或 `__MYAS_EMPTY__`），
+  旧记录继续按原样读取；`myas info` 对老版本实例多显示一行 `Install mode`。
+- `myas env` 对 `legacy` 实例不再假定 `YASDB_HOME=<install-path>/<version>`：老版本
+  yasboot 把软件装在 `<install-path>/yashandb/<version>`，也不写 23.x 的
+  `~/.yasboot/<cluster>_yasdb_home` 环境文件，因此按 `<install-path>/yashandb/<version>`、
+  `<install-path>/<version>`、`<install-path>` 的顺序查找带 `bin/yasdb` 的目录后再输出。
+
 ## 0.3.16 - 2026-10-12
 
 ### 变更

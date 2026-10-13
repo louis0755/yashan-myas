@@ -8,7 +8,7 @@
 | `yashan@192.168.23.5` | `aarch64` | aarch64 包矩阵测试 |
 | `yashan@192.168.23.13` | `x86_64` | x86_64 二次回归、异常/边界测试 |
 
-测试包来自 `/home/ganlu/software`，每个目标主机的测试包复制到 `/tmp` 后保留，测试结束不删除。
+测试包来自 `/home/ganlu/software/YashanDB`，每个目标主机的测试包复制到 `/tmp` 后保留，测试结束不删除。
 
 ## 1. 测试前提
 
@@ -52,6 +52,14 @@ MYAS_CONFIG_DIR=/tmp/myas-release-check \
 - `192.168.23.5` 为 `aarch64`；
 - 不得用 `x86_64` 包部署到 `aarch64`，反之亦然。
 
+控制端 `ARCH` 只能取一个值，因此上面的命令会把 `.5` 判为 `FAIL`（配置不匹配，不是主机
+问题）。`.5` 必须单独用 `ARCH=aarch64` 检查：
+
+```bash
+MYAS_CONFIG_DIR=/tmp/myas-release-check-arm myas/myas.sh config set ARCH aarch64
+MYAS_CONFIG_DIR=/tmp/myas-release-check-arm myas/myas.sh check 192.168.23.5
+```
+
 若出现 `FAIL`，必须先按 `NEED` 行补充信息或修复主机；不得以 `WARN` 代替 `FAIL`。
 
 ## 3. 分发安装包
@@ -61,30 +69,41 @@ MYAS_CONFIG_DIR=/tmp/myas-release-check \
 ```bash
 X86_PACKAGES=(
   yashandb-23.4.14.105-linux-x86_64.tar.gz
-  yashandb-23.5.4.100-linux-x86_64.tar.gz
-  yashandb-ai-23.5.4.100-linux-x86_64.tar.gz
+  yashandb-27.1.1.2-356-gd953d3665a9-linux-x86_64.tar.gz
+  yashandb-ai-27.1.1.2-356-gd953d3665a9-linux-x86_64.tar.gz
 )
 ARM_PACKAGES=(
   yashandb-23.4.14.105-linux-aarch64.tar.gz
-  yashandb-23.5.4.100-linux-aarch64.tar.gz
-  yashandb-ai-23.5.4.100-linux-aarch64.tar.gz
+  yashandb-27.1.1.2-356-gd953d3665a9-linux-aarch64.tar.gz
+  yashandb-ai-27.1.1.2-356-gd953d3665a9-linux-aarch64.tar.gz
 )
-scp /home/ganlu/software/"${X86_PACKAGES[@]}" yashan@192.168.23.4:/tmp/
-scp /home/ganlu/software/"${X86_PACKAGES[@]}" yashan@192.168.23.13:/tmp/
-scp /home/ganlu/software/"${ARM_PACKAGES[@]}" yashan@192.168.23.5:/tmp/
+scp /home/ganlu/software/YashanDB/"${X86_PACKAGES[@]}" yashan@192.168.23.4:/tmp/
+scp /home/ganlu/software/YashanDB/"${X86_PACKAGES[@]}" yashan@192.168.23.13:/tmp/
+scp /home/ganlu/software/YashanDB/"${ARM_PACKAGES[@]}" yashan@192.168.23.5:/tmp/
 ```
+
+矩阵的第二个版本已由 `23.5.6.100` 改为 `27.1.1.2-356-gd953d3665a9`；`23.5.4.100`/`23.5.6.100`
+不再进入矩阵（前者的 OpenSSL 环境限制见 MYAS-024）。要点：
+
+- `27.1.1.2-356-gd953d3665a9` 带构建后缀，必须原样传给 `myas create`；`--db-version` 会随之把软件
+  装到 `<install-path>/<完整版本>`，`myas list` 的 `VERSION` 列显示 `27.1.1.2-356`。
+- AI 行随 27.1 的 AI 包恢复：`yashandb-ai-27.1.1.2-356-gd953d3665a9-linux-*.tar.gz`，文件名含
+  `-ai`，不能依赖默认文件名匹配，必须显式传 `--package`。
+- 27.1 的四个包目前存放在本地共享 `/mnt/d/share/0_package`（Windows 侧 `D:\share\0_package`），
+  不在 `/home/ganlu/software/YashanDB/`；按上面的 `scp` 分发前先复制到该目录，或直接在目标机
+  `/tmp` 已有副本时按 §3 末尾的 `sha256sum` 核对一致。
 
 若当前 `scp` 不支持一次传递数组，逐个执行：
 
 ```bash
-scp /home/ganlu/software/yashandb-23.4.14.105-linux-x86_64.tar.gz \
+scp /home/ganlu/software/YashanDB/yashandb-23.4.14.105-linux-x86_64.tar.gz \
   yashan@192.168.23.4:/tmp/
 ```
 
 复制后记录并核对校验值：
 
 ```bash
-sha256sum /home/ganlu/software/*.tar.gz
+sha256sum /home/ganlu/software/YashanDB/*.tar.gz
 for host in 192.168.23.4 192.168.23.5 192.168.23.13; do
   ssh "yashan@${host}" 'sha256sum /tmp/yashandb*.tar.gz'
 done
@@ -129,16 +148,17 @@ diff -u ~/.myas/settings.conf.bak.YYYYmmddHHMMSS ~/.myas/settings.conf
 
 ## 5. 包测试矩阵
 
-每个架构测试三个包。普通包可以使用默认文件名匹配；AI 包文件名包含 `-ai`，必须显式传递 `--package`。
+每个架构测试三个包。普通包可以使用默认文件名匹配；AI 包文件名包含 `-ai`，必须显式传递
+`--package`；带构建后缀的版本号必须原样传给 `myas create`。
 
 | 主机 | 包 | 版本 | 参数 |
 | --- | --- | --- | --- |
 | `.4` / `.13` | `yashandb-23.4.14.105-linux-x86_64.tar.gz` | `23.4.14.105` | `--package /tmp/...` |
-| `.4` / `.13` | `yashandb-23.5.4.100-linux-x86_64.tar.gz` | `23.5.4.100` | `--package /tmp/...` |
-| `.4` / `.13` | `yashandb-ai-23.5.4.100-linux-x86_64.tar.gz` | `23.5.4.100` | 必须显式 `--package` |
+| `.4` / `.13` | `yashandb-27.1.1.2-356-gd953d3665a9-linux-x86_64.tar.gz` | `27.1.1.2-356-gd953d3665a9` | `--package /tmp/...`，版本号原样传入 |
+| `.4` / `.13` | `yashandb-ai-27.1.1.2-356-gd953d3665a9-linux-x86_64.tar.gz` | `27.1.1.2-356-gd953d3665a9` | 必须显式 `--package` |
 | `.5` | `yashandb-23.4.14.105-linux-aarch64.tar.gz` | `23.4.14.105` | `--package /tmp/...` |
-| `.5` | `yashandb-23.5.4.100-linux-aarch64.tar.gz` | `23.5.4.100` | `--package /tmp/...` |
-| `.5` | `yashandb-ai-23.5.4.100-linux-aarch64.tar.gz` | `23.5.4.100` | 必须显式 `--package` |
+| `.5` | `yashandb-27.1.1.2-356-gd953d3665a9-linux-aarch64.tar.gz` | `27.1.1.2-356-gd953d3665a9` | `--package /tmp/...`，版本号原样传入 |
+| `.5` | `yashandb-ai-27.1.1.2-356-gd953d3665a9-linux-aarch64.tar.gz` | `27.1.1.2-356-gd953d3665a9` | 必须显式 `--package` |
 
 登录目标主机 `192.168.23.4` 后，在该机本地执行（不带 `--target`）：
 
@@ -191,7 +211,8 @@ ss -ltn | grep -E ':1800[0-9]|:1801[0-9]|:1802[0-9]'
 - `database_status=normal`、实例状态为 `RUNNING`；
 - `listen_address` 使用指定的目标 IP；
 - `hosts.toml` 和集群 TOML 中端口、字符集及其他指定参数正确；
-- AI 包不能因为文件名自动匹配失败；显式 `--package` 能正常完成部署；
+- 矩阵含 AI 包行时，AI 包不能因为文件名自动匹配失败，显式 `--package` 能正常完成部署
+  （当前矩阵无 AI 行，见 §5）；
 - `myas info` 显示的版本与包版本一致；
 - 生成环境后 `eval "$(myas env CLUSTER)"` 能设置正确的 `YASHANDB_*` 变量。
 
@@ -204,7 +225,9 @@ myas create NAME VERSION --local --host-ip HOST \
 myas info CLUSTER
 ```
 
-确认 `MySQL mode` 和 MySQL 端口均正确。GBK、`--use-native-type` 等参数应至少在一个普通包和一个 AI 包上各验证一次。
+确认 `MySQL mode` 和 MySQL 端口均正确。GBK、`--use-native-type` 等参数应在矩阵中的每个包上
+各验证一次（当前为 `23.4.14.105`、`27.1.1.2-356-gd953d3665a9` 与
+`yashandb-ai-27.1.1.2-356-gd953d3665a9`）。
 
 ## 7. 失败处理和清理
 

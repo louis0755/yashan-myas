@@ -52,6 +52,22 @@ gh release create "v${MYAS_VERSION}" \
 
 只上传保留密码占位符的公开包。
 
+## 发布日志（HTML）
+
+每次 release 除 GitHub Release 的 markdown notes 外，必须同时输出一份**自包含 HTML 版
+发布日志**，保存为 `myas/dist/myas-${MYAS_VERSION}-release-notes.html`（`dist/` 已在
+`.gitignore` 内）。要求：
+
+- 单文件、内联样式，不引用外部资源，可直接用浏览器打开或打印；
+- 内容包含：发布概要（版本、日期、发布状态、公开包与 SHA256、仓库、提交与部署状态）、
+  新特性与修复、测试结果（自动化门禁、发布环境包矩阵、参数覆盖、实例级验证、清理与恢复）、
+  已知问题与阻塞、升级与兼容性、结论与后续、本次改动文件清单；
+- 测试结果必须与 `release-test-report.md` 的当次记录一致，结论不是 `PASS` 时在概要中
+  显著标注为候选版本；
+- 不得包含密码、密钥、主机清单以外的敏感信息。
+
+示例见 `myas/dist/myas-0.3.20-release-notes.html`（2026-10-13 复测，结论 `PARTIAL`）。
+
 ## 完成条件
 
 提交和 tag 已推送，GitHub Release 可访问，Release 资产的 SHA256 与本地一致。

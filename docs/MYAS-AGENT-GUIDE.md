@@ -49,11 +49,15 @@ myas create NAME VERSION --local --host-ip 本机IP \
 
 `--precheck` 成功后，移除 `--precheck` 执行真实创建。
 
-先查找目标主机上已有的测试数据库包：
+先查找目标主机上已有的测试数据库包。未指定安装目录时只查下列目录，不另找其它位置：
 
 ```bash
-find /data /home/yashan /tmp -type f -name 'yashandb*-linux-*.tar.gz' -readable 2>/dev/null
+find /tmp /data/software /data/soft -type f -name 'yashandb*-linux-*.tar.gz' -readable 2>/dev/null
 ```
+
+同一位置存在多个候选版本时，按版本号取最大者：给出三段版本号（如 `23.5.4`）时，在
+`23.5.4.x` 中取 `x` 最大；给出两段版本号（如 `23.5`）时，在 `23.5.X.Y` 中取 `X` 最大，
+`X` 相同时再取 `Y` 最大。
 
 若找到满足本次架构和版本要求的包，直接使用其绝对路径并记录 SHA256：
 
@@ -62,7 +66,9 @@ sha256sum /已有包的绝对路径/PACKAGE.tar.gz
 ```
 
 只有目标主机没有所需包时，才从控制端复制到目标主机 `/tmp`，再使用
-`/tmp/PACKAGE.tar.gz`。
+`/tmp/PACKAGE.tar.gz`。控制端按同样的默认目录查找候选包：本地 WSL 所在的 Windows
+主机上查 `D:\share\0_package` 与 `D:\Downloads`（WSL 内对应
+`/mnt/d/share/0_package` 与 `/mnt/d/Downloads`）。
 
 按主机架构设置 `ARCH`：
 
@@ -104,6 +110,35 @@ ss -ltn | grep -E ':1800[0-9]|:1801[0-9]|:1802[0-9]' || true
 ```
 
 AI 包文件名不符合默认匹配规则，必须始终显式传入完整的 `--package` 绝对路径。
+
+## 老版本安装（`--legacy`）
+
+22.2 这类老版本使用"平铺"安装包：`admin/`、`bin/`、`conf/`、`lib/`、`scripts/` 直接位于包根，
+没有 23.x 的内层 `database-*.tar.gz`，且其 yasboot 没有 `package se gen` 子命令。这类包不加
+`--legacy` 会在 C-003 抽取阶段失败（报"stage directory is not empty"之外的包结构检查失败）。
+
+```bash
+myas create NAME VERSION --local --host-ip HOST \
+  --package /绝对路径/yashandb-22.2.12.100-linux-x86_64.tar.gz \
+  --db-port DB_PORT --legacy --remarks legacy-22.2.12.100 --precheck
+```
+
+`--legacy` 把安装流程换成老版 yasboot 的接口：C-004 用 `yasboot package config gen -t SE`
+生成 `hosts.toml`/`<cluster>.toml`，C-006 用 `yasboot package install -i 安装包 -t hosts.toml`
+安装软件，其余步骤（端口改写、`cluster deploy`、`cluster status` 验证）与 23.x 相同。
+
+- 只支持单机：`--standbys`、`--mysql`/`--mysql-port`、`--use-native-type`、`--memory-size`
+  会被明确拒绝；配置里的全局 `MEMORY_SIZE` 属于默认值，会被忽略并打印提示。
+- 字符集只支持 22.2 系列实际提供的 `ASCII`、`ISO88591`、`GBK`、`UTF8`；`GB18030` 是 23.x
+  的取值，在 `--legacy` 下会被直接拒绝（22.2.16.101 包内 `conf/database_options.json` 与
+  22.2 文档的配置参数、CREATE DATABASE、yasboot 建库参数三处均为这四个值）。
+- 端口组仍是数据库端口减 2、减 1、加 1；老版 yasboot 由 `--begin-port` 直接推导数据库监听
+  端口，因此 C-004 传的是数据库端口。老版本单机实例实际监听 Yasom、Yasagent、数据库三个
+  端口，TOML 里的 Replicat 端口不监听。
+- 软件落在 `<install-path>/yashandb/<version>`（23.x 是 `<install-path>/<version>`），
+  `myas env` 按该布局查找 `bin/yasdb`，无需额外参数。
+- `--log-path` 在该模式下不生效：老版 yasboot 把日志放在安装目录下，实例登记里的 log_path
+  只是记录值。
 
 ## 创建后验证
 

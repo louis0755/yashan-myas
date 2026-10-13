@@ -35,6 +35,12 @@ Create options:
   --dry-run            Ask yinstall to print planned mutation
   --force              Allow cleanup of stale managed installation files
   --memory-size SIZE   Memory target for this deployment; integer M(default) or G
+  --legacy             Install a 22.2-era package (flat layout, no inner
+                       database-*.tar.gz): yasboot "package config gen -t SE" plus
+                       "package install -i PACKAGE". Single node only; --standbys,
+                       --mysql/--mysql-port, --use-native-type and --memory-size are
+                       rejected, --character-set is limited to ASCII/ISO88591/GBK/UTF8
+                       (no GB18030), and a configured MEMORY_SIZE is ignored.
   --mysql              Enable MySQL protocol using the next available port
   --mysql-port PORT    Enable MySQL protocol on an explicit port
   --use-native-type    Set USE_NATIVE_TYPE=true during database installation

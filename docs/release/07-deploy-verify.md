@@ -9,9 +9,10 @@
 
 ## 推荐方式：部署公开包
 
-将 GitHub Release 的公开包传到目标机并核对 SHA256。当前根目录
-`myas/tools/upgrade.sh` 创建的命令入口与组合包目录结构不一致，在修复并通过测试前
-不要使用。按以下命令部署：
+将 GitHub Release 的公开包传到目标机并核对 SHA256。`myas/tools/upgrade.sh` 解包并切换
+`current` 软链的动作与下面的命令一致，但它不写 `YINSTALL_BIN`（`tools/release.sh` 会写）；
+目标机的 `YINSTALL_BIN` 指向带版本号的旧路径时，升级后必须把它改回
+`$HOME/.local/opt/myas/current/yinstall/yinstall.sh`。按以下命令部署：
 
 ```bash
 MYAS_VERSION=0.3.8

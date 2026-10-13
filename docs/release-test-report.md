@@ -1,9 +1,26 @@
 # Release Test Report
 
-测试日期：2026-08-26，更新：2026-09-17  
-测试对象：`myas 0.3.8`、`yinstall 0.4.6`（2026-09-17 候选包；历史记录为 0.3.6/0.4.5）  
-主机：`192.168.23.4`（主）、`192.168.23.13`（备）  
-最终结论：`PARTIAL`
+测试日期：2026-08-26，更新：2026-09-17，复测：2026-10-13
+
+测试对象：`myas 0.3.8`、`yinstall 0.4.6`（2026-09-17 候选包；历史记录为 0.3.6/0.4.5）；2026-10-13 复测 `myas 0.3.20`、`yinstall 0.4.14`
+
+主机：`192.168.23.4`（主）、`192.168.23.13`（备）
+
+最终结论：`PASS`
+
+2026-10-13 主备门禁说明：一主一备门禁（`.4` 主、`.13` 备，`23.4.14.105`，数据库端口 18003）
+在 `myas 0.3.20` / `yinstall 0.4.14` 上一次性部署成功：主库 `primary`、备库 `standby`，两端
+`open/normal`，备库 `source_node` 为 `1-1`；主库写入的行在备库可读（复制可用），`myas shutdown`
+→ `myas start` 恢复后角色、状态与复制保持。YINSTALL-010（`hosts.toml` 备机 yasagent 地址）的修复
+在真机得到验证。单机矩阵九行（`23.4.14.105` + `27.1.1.2-356-gd953d3665a9` + AI 27.1，三台主机）
+与主备门禁全部通过，按 `release-test.md` §9 报告结论由 `PARTIAL` 提升为 `PASS`。
+
+2026-10-13 结论说明：单机矩阵为 `23.4.14.105` + `27.1.1.2-356-gd953d3665a9` + 其 AI 包
+（`23.5.4.100`/`23.5.6.100` 按 `release-test.md` §3/§5 退出矩阵），三台主机九行全部 `PASS`；
+`23.5.4.100` 的 OpenSSL 环境限制（MYAS-024）由产品版本解决。剩余门禁为主备端到端 `NOT RUN`
+（YINSTALL-010 已在 yinstall 0.4.7 修复，真机复测未做），当时整体结论为 `PARTIAL`；该门禁已于
+同日复测通过，结论随之提升为 `PASS`，见上文说明与下文「2026-10-13 主备门禁复测（PASS）」。
+明细见下文「2026-10-13 复测」「2026-10-13 追加」「2026-10-13 再追加」三节。
 
 2026-09-17 结论说明：0.3.8 候选包在 `192.168.23.4`、`192.168.23.13`、`192.168.23.5` 完成部署、
 单机创建、连通性、停机、启动与删除验证（含早失败实例删除），全部 `PASS`，主备此前阻塞的
@@ -13,6 +30,154 @@
 定为 `PARTIAL`，主备修复并复测通过后方可回到 `PASS`。历史小节保留原始失败记录。
 
 本次继续测试前先执行了实例检测。`.13` 上 `ys18007` 的 cluster status 返回资源不存在，没有可用数据库实例；但发现上次失败留下的初始化进程、yasboot 环境文件和安装目录，已按实例范围清理。`.13` 原有 `tpcc` 实例未被清理。
+
+## 2026-10-13 复测：myas 0.3.20 / yinstall 0.4.14
+
+按 `myas/docs/release/` 的发布流程执行。工作区未提交（无 commit），发布范围是 `myas 0.3.20`
++ 内置 `yinstall 0.4.14`（`--legacy` 老包支持、legacy 字符集守卫、legacy 日志目录修正）。
+候选包 `myas-0.3.20.tar.gz`，SHA256 `84db1a1b1ca4341171e7a790632f9d4824096d43e8f67f61f44a61c800c44e9e`。
+
+部署：`.4`、`.13` 升级前已是 0.3.20/0.4.14；`.5` 由 `myas 0.3.16 / yinstall 0.4.11` 按
+`release/07-deploy-verify.md` 的手工步骤升级到 0.3.20/0.4.14（未使用 `tools/upgrade.sh`）。
+三台主机 `myas --version`、内置 `yinstall --version` 均正确，`YINSTALL_BIN` 指向
+`~/.local/opt/myas/current/yinstall/yinstall.sh`，既有实例未受影响。
+
+测试包：六个包与源 `/home/ganlu/software/YashanDB/` SHA256 一致（x86_64 `e5bc0fe0…`、
+`8c08ade6…`、`433cc775…`；aarch64 `5c9f02ce…`、`c0ab7e3b…`、`a245b093…`），保留在 `/tmp`。
+
+主机预检：`.4`、`.13` 以 `ARCH=x86_64`、`.5` 以 `ARCH=aarch64` 分别执行 `myas check`，均 `PASS`。
+
+| 主机 | 架构 | 包 | DB 端口 | 预检 | 部署 | 运行状态 | 配置/环境验证 | 结果 |
+| --- | --- | --- | ---: | --- | --- | --- | --- | --- |
+| `192.168.23.4` | x86_64 | `yashandb-23.4.14.105-linux-x86_64.tar.gz` | 18003 | PASS | PASS | RUNNING，open/normal/primary | PASS | **PASS** |
+| `192.168.23.4` | x86_64 | `yashandb-23.5.4.100-linux-x86_64.tar.gz` | 18007 | PASS | FAIL | INSTALL_FAILED | — | FAIL（环境） |
+| `192.168.23.4` | x86_64 | `yashandb-ai-23.5.4.100-linux-x86_64.tar.gz` | 18011 | PASS | FAIL | INSTALL_FAILED | — | FAIL（环境） |
+| `192.168.23.13` | x86_64 | 同 `.4` 三个包 | 18003 / 18007 / 18011 | PASS | PASS / FAIL / FAIL | RUNNING；两个 INSTALL_FAILED | PASS / — / — | **PASS** / FAIL（环境）×2 |
+| `192.168.23.5` | aarch64 | 三个 aarch64 包 | 18003 / 18007 / 18011 | PASS | PASS / FAIL / FAIL | RUNNING；两个 INSTALL_FAILED | PASS / — / — | **PASS** / FAIL（环境）×2 |
+
+失败行报错与 2026-09-17 同因（MYAS-024 未解除）：
+
+- `.4`：`YAS-00509 ... libssl.so.1.1: cannot open shared object file: No such file or directory`
+- `.13`、`.5`：`YAS-00509 ... version 'OPENSSL_1_1_1f' not found (required by /usr/lib64/libssl.so.1.1)`
+
+参数覆盖（普通包；AI 包同类覆盖因环境限制 `NOT RUN`）：
+
+| 项目 | 主机 | 命令要点 | 结果 |
+| --- | --- | --- | --- |
+| GBK 字符集 | `.4` | `myas create reltest18015 23.4.14.105 --local --db-port 18015 --character-set GBK` | PASS：TOML `CHARACTER_SET = "GBK"`，`myas info`/`list` 显示 `GBK` |
+| `--use-native-type` + MySQL | `.5` | `--db-port 18019 --use-native-type --mysql` | PASS：TOML `USE_NATIVE_TYPE = true`、`mysql_addr = "192.168.23.5:3307"`，`myas info` 显示 MySQL 端口 `3307` |
+
+实例级验证（每个成功实例）：`myas info/status/list`、`yasboot cluster status -c … -d`、四端口
+监听、`eval "$(myas env CLUSTER)"` 后 `YASDB_HOME`/`YASHANDB_PORT` 正确、`yasql` 执行
+`select 1 from dual` 返回 1 行；`.4`、`.13`、`.5` 的 `ys18003` 各做一次 `myas shutdown`
+（端口释放）→ `myas start`（恢复 `open/normal/primary` 与四端口监听），全部 PASS。
+
+清理与现场：本次创建的实例（三台的 `ys18003`、`.4` 的 `ys18015`、`.5` 的 `ys18019`）与三台
+主机上的失败行（`ys18007`、`ys18011`）均按实例范围 `myas delete` 清理，18xxx 端口释放，
+登记、目录、`.env`、进程无残留；三台主机 `settings.conf` 与测试前备份 `diff` 一致，
+`YASOM_PORT_START` 保持原值（`.4`/`.5` 为 `1901`，`.13` 为 `1701`）。原有用例全部 RUNNING。
+
+遗留（非本次产生，未处理）：`.5` 的 `/data/yashan/ys1803`、`ys1807`、`ys18027`、`ys18031`、
+`ys18035` 目录与 `~/.yasboot/ys1803*`、`ys1807*`、`ys18027*`、`ys18031*`、`ys18035*` 环境文件，
+以及 `yasdb nomount` 残留进程（`ys18027`）；这些在 `instances.tsv` 中无登记，不属于本次范围。
+
+文档偏差（本次发现，已按 `release/00-agent-rules.md` 修正文档）：
+
+1. `release-test.md` §3 的包源路径应为 `/home/ganlu/software/YashanDB/`；
+2. `release-test.md` §2 的 `myas check` 无法用单一 `ARCH` 同时覆盖 `.5`（aarch64），已补分架构执行说明；
+3. `release/07-deploy-verify.md` 对 `tools/upgrade.sh` 的禁令改为说明真实差异：`upgrade.sh`
+   不写 `YINSTALL_BIN`（`release.sh` 会写），升级后需确认该值指向 `current`；
+4. `.4` 的 `~/.bashrc` 缺 `myas shell-init`（`.5`/`.13` 有），未修改主机，列为待办。
+
+主备门禁：`NOT RUN`（可选门禁，本次未执行；YINSTALL-010 已在 yinstall 0.4.7 修复，真机端到端
+复测仍未做）。
+
+本次结论：单机矩阵 `23.4.14.105` 三台主机全部 `PASS`，`23.5.4.100` 与 AI 包仍为
+`FAIL（环境限制）`，参数覆盖 `PASS`，主备 `NOT RUN`。按 `release-test.md` §9，整体结论维持
+`PARTIAL`；在 MYAS-024 环境限制解除、主备复测通过之前不能提升为正式 Release。
+
+### 2026-10-13 追加：矩阵改用 23.5.6.100（MYAS-024 由产品版本解决）
+
+`23.5.4.100` 的 OpenSSL 环境限制已由 `23.5.6.100` 修复，矩阵按 `release-test.md` §3/§5 改用
+后者；`23.5.4.100` 行与 AI 行（`yashandb-ai-23.5.4.100` 内嵌旧构建，且暂无对应新版 AI 包）
+从矩阵移除。两个包 SHA256 与本地共享 `/mnt/d/share/0_package` 一致。
+
+| 主机 | 架构 | 包 | DB 端口 | 预检 | 部署 | 运行状态 | 配置/环境验证 | 结果 |
+| --- | --- | --- | ---: | --- | --- | --- | --- | --- |
+| `192.168.23.4` | x86_64 | `yashandb-23.5.6.100-linux-x86_64.tar.gz`（`10978870…`） | 18007 | PASS | PASS | RUNNING，open/normal/primary | PASS | **PASS** |
+| `192.168.23.13` | x86_64 | 同上 | 18007 | PASS | PASS | RUNNING，open/normal/primary | PASS | **PASS** |
+| `192.168.23.5` | aarch64 | `yashandb-23.5.6.100-linux-aarch64.tar.gz`（`79a05fac…`） | 18007 | PASS | PASS | RUNNING，open/normal/primary | PASS | **PASS** |
+
+验证方式与首轮一致：`--precheck` 通过后创建，`myas info/status`、`yasboot cluster status -c … -d`、
+四端口（18005–18008）监听、`yasql` 执行 `select 1 from dual` 返回 1 行。三台主机的测试实例已按
+实例范围 `myas delete` 清理，18xxx 端口释放，登记/目录/`.env`/进程无残留。
+
+据此，单机矩阵（`23.4.14.105` × 3 主机 + `23.5.6.100` × 3 主机，共六行）全部 `PASS`，
+不再存在环境阻塞行。剩余门禁：主备端到端 `NOT RUN`。
+
+### 2026-10-13 再追加：矩阵第二个版本改为 27.1（AI 行恢复）
+
+按用户要求，矩阵的第二个版本由 `23.5.6.100` 改为 `27.1.1.2-356-gd953d3665a9`；该版本同时提供
+AI 包（`yashandb-ai-27.1.1.2-356-gd953d3665a9`），因此 AI 行一并恢复，矩阵回到"每个架构三个包"。
+27.1 的四个包由本地共享 `/mnt/d/share/0_package` 分发到三台主机 `/tmp`，SHA256 与源一致：
+x86_64 `a88aed0f…`、ai-x86_64 `7ab2b979…`、aarch64 `2da190a1…`、ai-aarch64 `5dec7485…`。
+
+| 主机 | 架构 | 包 | DB 端口 | 预检 | 部署 | 运行状态 | 配置/环境验证 | 结果 |
+| --- | --- | --- | ---: | --- | --- | --- | --- | --- |
+| `192.168.23.4` | x86_64 | `yashandb-27.1.1.2-356-gd953d3665a9-linux-x86_64.tar.gz` | 18007 | PASS | PASS | RUNNING，open/normal/primary | PASS | **PASS** |
+| `192.168.23.4` | x86_64 | `yashandb-ai-27.1.1.2-356-gd953d3665a9-linux-x86_64.tar.gz` | 18011 | PASS | PASS | RUNNING，open/normal/primary | PASS | **PASS** |
+| `192.168.23.13` | x86_64 | 同上两个包 | 18007 / 18011 | PASS | PASS | RUNNING，open/normal/primary | PASS | **PASS** ×2 |
+| `192.168.23.5` | aarch64 | `yashandb-27.1.1.2-356-gd953d3665a9-linux-aarch64.tar.gz` | 18007 | PASS | PASS | RUNNING，open/normal/primary | PASS | **PASS** |
+| `192.168.23.5` | aarch64 | `yashandb-ai-27.1.1.2-356-gd953d3665a9-linux-aarch64.tar.gz` | 18011 | PASS | PASS | RUNNING，open/normal/primary | PASS | **PASS** |
+
+参数覆盖（27.1 家族）：
+
+| 项目 | 主机 | 命令要点 | 结果 |
+| --- | --- | --- | --- |
+| GBK 字符集（普通包） | `.4` | `myas create reltest18015 27.1.1.2-356-gd953d3665a9 --local --db-port 18015 --character-set GBK` | PASS：`Character set: GBK` |
+| `--use-native-type` + MySQL（AI 包） | `.5` | `--db-port 18019 --use-native-type --mysql` | PASS：`MySQL port: 3307` |
+
+验证方式同前：`--precheck` → 创建 → `myas info/status`、四端口监听、`yasql` 执行
+`select 1 from dual` 返回 1 行。带构建后缀的版本落地正确：`myas info` 显示
+`Version: 27.1.1.2-356-gd953d3665a9`，软件目录为 `<install-path>/27.1.1.2-356-gd953d3665a9`，
+`myas list` 的 `VERSION` 列显示 `27.1.1.2-356`。三台主机的八个测试实例已按实例范围
+`myas delete` 清理，18xxx 端口释放，登记/目录/进程无残留，`settings.conf` 与测试前备份一致。
+
+据此，单机矩阵为 `23.4.14.105` + `27.1.1.2-356-gd953d3665a9` + AI 27.1（三台主机共九行），
+全部 `PASS`；`23.5.6.100` 的三行结果保留在上一节作为历史记录，已不在矩阵内。剩余门禁仍为
+主备端到端 `NOT RUN`。
+
+### 2026-10-13 主备门禁复测（PASS）
+
+按 `release-test.md` §8 执行一主一备门禁，`myas 0.3.20` / `yinstall 0.4.14`，包
+`yashandb-23.4.14.105-linux-x86_64.tar.gz`（SHA256 `e5bc0fe0…`，与源一致），数据库端口 18003
+（Yasom 18001 / Yasagent 18002 / Replicat 18004），集群名 `ys18003`，实例名 `release-primary`，
+备注 `release-standby`。命令在**主节点 `.4` 本地**执行（不使用 `myas create --target 192.168.23.13`）：
+
+```bash
+# 在 192.168.23.4 上执行，先 --precheck 再真实创建
+myas create release-primary 23.4.14.105 --target 192.168.23.4 --host-ip 192.168.23.4 \
+  --standbys 192.168.23.13 --package /tmp/yashandb-23.4.14.105-linux-x86_64.tar.gz \
+  --db-port 18003 --remarks release-standby
+```
+
+| 报告项 | 结果 |
+| --- | --- |
+| 预检 | PASS（`--precheck` 退出码 `0`，`B-000` 主备免密 SSH、`C-000` 备机端口检查通过，未留登记） |
+| 部署 | PASS：`DeployYasdbCluster` `SUCCESS`（85s），退出码 `0` |
+| 主节点 ID / 管理 IP | `host0001` / `1-1:1` / `192.168.23.4` |
+| 备节点 ID / 管理 IP | `host0002` / `1-2:2` / `192.168.23.13` |
+| 复制端口 | `18004`（备库 `listen_address` 为 `192.168.23.13:18003`，`source_node` 为 `1-1`） |
+| 免密 SSH 检查 | `.4` → `.13` PASS（`B-000`）；`.13` → `.4` 未配置，本次流程未依赖该方向 |
+| 角色验证 | `myas status ys18003`：主库 `primary`、备库 `standby`，两端 `open` / `normal` |
+| 复制状态验证 | 主库 `insert` 后：主库 `count=1`、备库 `count=1`；重启后再插一行：主库 `2`、备库 `2` |
+| 重启恢复 | `myas shutdown ys18003`（两端 18001–18004 端口释放、列表转 `INSTALLED`）→ `myas start ys18003` → 两端端口恢复、角色与复制保持 |
+| 端口 | 主库 `18001–18004`；备库 `18002/18003/18004`（备库不跑 yasom） |
+| 现场 | 复核后已清理（2026-10-13）：`.4` 侧先 `yasboot package uninstall -c ys18003 -t hosts.toml --force` 再 `myas delete ys18003`；`.13` 侧残留目录与 `~/.yasboot/ys18003*` 移入 `/data/yashan/.trash-ys18xxx-20261013/`（可恢复）。`myas delete` 对 `--target` 创建的实例会拒绝执行（MYAS-025），本次临时把登记 `target` 改为 `local` 后删除，`instances.tsv` 已先备份 |
+
+该门禁原先因 YINSTALL-010（`package se gen` 生成的 `hosts.toml` 把第二个 host 的
+`[host.yasagent.config] LISTEN_ADDR` 写成主库 IP）失败；yinstall 0.4.7 的 `steps/host-addrs.awk`
+修复后本次真机一次性部署成功，主备两端地址正确。
 
 ## 测试包
 

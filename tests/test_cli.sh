@@ -147,6 +147,35 @@ assert_failure run_myas create baddb 27.1.1.2-356_gd953d3665a9 --db-port 1863
 assert_failure run_myas create baddb ../27.1.1.2 --db-port 1863
 assert_failure run_myas create baddb 27.1.1.2/../../etc --db-port 1863
 
+# --legacy selects the 22.2-era install flow: the flag reaches yinstall and the
+# registration records it, while the combinations that flow cannot honor fail early.
+touch "${PACKAGE_DIR}/yashandb-22.2.12.100-linux-x86_64.tar.gz"
+run_myas create legacy22db 22.2.12.100 --db-port 1871 --legacy
+assert_contains '--legacy' "${MARKER}"
+grep -F $'\tlegacy' "${CONFIG_DIR}/instances.tsv" >/dev/null
+assert_failure run_myas create legacyha 22.2.12.100 --target 10.0.0.11 --db-port 1875 --host-ip 10.0.0.11 --standbys 10.0.0.12 --legacy
+assert_failure run_myas create legacymysql 22.2.12.100 --db-port 1879 --mysql-port 3314 --legacy
+assert_failure run_myas create legacymem 22.2.12.100 --db-port 1883 --memory-size 1G --legacy
+assert_failure run_myas create legacynative 22.2.12.100 --db-port 1887 --use-native-type --legacy
+assert_failure run_myas create legacycharset 22.2.12.100 --db-port 1891 --character-set GB18030 --legacy
+run_myas info legacy22db >"${TMP_DIR}/legacy-info"
+assert_contains 'Install mode:  legacy' "${TMP_DIR}/legacy-info"
+# Legacy yasboot installs under <install-path>/yashandb/<version>, so env discovers it.
+mkdir -p -- "${TMP_DIR}/instances/ys1871/yasdb-home/yashandb/22.2.12.100/bin"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"${TMP_DIR}/instances/ys1871/yasdb-home/yashandb/22.2.12.100/bin/yasdb"
+chmod +x "${TMP_DIR}/instances/ys1871/yasdb-home/yashandb/22.2.12.100/bin/yasdb"
+mkdir -p -- "${TMP_DIR}/instances/ys1871/yasdb-home/yashandb/22.2.12.100/log"
+run_myas env ys1871 >"${TMP_DIR}/legacy-environment"
+assert_contains "YASDB_HOME=${TMP_DIR}/instances/ys1871/yasdb-home/yashandb/22.2.12.100" "${TMP_DIR}/legacy-environment"
+# Legacy yasboot ignores --log-path, so env must report the directory it really uses.
+assert_contains "YASHANDB_LOG=${TMP_DIR}/instances/ys1871/yasdb-home/yashandb/22.2.12.100/log" "${TMP_DIR}/legacy-environment"
+if grep -F "YASHANDB_LOG=${TMP_DIR}/instances/ys1871/yasdb-log" "${TMP_DIR}/legacy-environment" >/dev/null; then
+	echo 'legacy env reported the unused --log-path' >&2
+	exit 1
+fi
+run_myas info ys1871 >"${TMP_DIR}/legacy-info-log"
+assert_contains "Log path:      ${TMP_DIR}/instances/ys1871/yasdb-home/yashandb/22.2.12.100/log" "${TMP_DIR}/legacy-info-log"
+
 # Instances registered before the character set was recorded keep the effective
 # value in the generated cluster configuration; the list falls back to reading it.
 printf '%s\n' '[group.config]' '    CHARACTER_SET = "utf8"' >"${TMP_DIR}/instances/ys1703/install/ys1703.toml"
@@ -188,6 +217,8 @@ assert_contains $'nextdb\t23.4.14.100\tys1807\t1807\t1805\t1806\t1808\tlocal' "$
 assert_contains $'mysqldb\t23.4.14.100\tys1815\t1815\t1813\t1814\t1816\tlocal' "${CONFIG_DIR}/instances.tsv"
 grep -F $'\tINSTALLED\t__MYAS_EMPTY__\t3310\t__MYAS_EMPTY__' "${CONFIG_DIR}/instances.tsv" >/dev/null
 grep -F $'\tINSTALLED\t__MYAS_EMPTY__\t__MYAS_EMPTY__\tGBK' "${CONFIG_DIR}/instances.tsv" >/dev/null
+# A non-legacy create keeps the legacy column empty, so the row ends with four placeholders.
+grep -F $'\tINSTALLED\t__MYAS_EMPTY__\t__MYAS_EMPTY__\t__MYAS_EMPTY__\t__MYAS_EMPTY__' "${CONFIG_DIR}/instances.tsv" >/dev/null
 assert_contains $'\tINSTALLED\t' "${CONFIG_DIR}/instances.tsv"
 assert_contains 'db install --package' "${MARKER}"
 assert_contains '--local' "${MARKER}"

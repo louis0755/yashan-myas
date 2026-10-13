@@ -202,6 +202,27 @@
 - 现象：`23.5.4.100` 与 `yashandb-ai-23.5.4.100` 在 `.4`/`.5` 上安装成功但启动失败（`Failed to start instance`、`Lifecycle=INSTALL_FAILED`），四个测试实例已按范围清理。
 - 原因：主机 OpenSSL 版本与包内依赖不匹配——CentOS 7 无 `libssl.so.1.1`；Kylin V10 的 `libssl.so.1.1` 不含 `OPENSSL_1_1_1f` 符号。与 yinstall 行为无关。
 - 影响：`.4`/`.5` 无法完成 23.5.4.100 与 AI 包的发布矩阵验证，报告中记为 `FAIL（环境限制）`。
-- 状态：`ENVIRONMENT LIMITATION`
-- 修复：需产品确认包对 OpenSSL 的最低要求并提供自带 `libssl` 的方案，或升级主机 OpenSSL；否则在矩阵中标记为不适用。
-- 验证：待条件满足后重跑矩阵并更新报告。
+- 状态：`RESOLVED`（2026-10-13 由产品版本解决，非本仓库代码修复）
+- 修复：`23.5.6.100` 修复了旧构建的 OpenSSL 依赖问题；发布矩阵已改用 `23.5.6.100`
+  （`myas/docs/release-test.md` §3/§5），`23.5.4.100` 不再进入矩阵。
+- 后续：矩阵的第二个版本最终改为 `27.1.1.2-356-gd953d3665a9`，AI 行随
+  `yashandb-ai-27.1.1.2-356-gd953d3665a9` 恢复（见 `release-test.md` §3/§5）；
+  `23.5.4.100` 与 `23.5.6.100` 均不再进入矩阵。
+- 验证：`23.5.6.100`（六行）与 `27.1` + AI 27.1（九行）在 `.4`、`.13`、`.5` 的预检、部署与运行
+  验证结果见 `myas/docs/release-test-report.md` 的 2026-10-13 各小节。
+
+## MYAS-025 — `myas delete` 拒绝删除用 `--target` 创建的实例（即使在本机执行）
+
+- 发现：2026-10-13
+- 错误信息：`myas: remote instance deletion is not supported`
+- 现象：按 `MYAS-AGENT-GUIDE.md` 的主备/控制端流程在主节点本地执行
+  `myas create NAME VERSION --target <本机IP> --standbys <备机IP>` 后，登记里的 `target` 字段是
+  本机 IP 而不是 `local`；在同一台主机上执行 `myas delete` 因此被 `[[ ${INSTANCE_TARGET} == local ]]`
+  拒绝，主备实例无法用 myas 回收。本次发布测试的 `ys18003` 主备实例通过临时把登记 `target`
+  改成 `local`（并备份 `instances.tsv`）后删除；`.13` 备机侧的目录与 `~/.yasboot` 条目按实例范围
+  另行清理。
+- 影响：主备门禁产生的实例需要人工绕行才能清理，容易留下未登记的残留目录/进程。
+- 状态：`OPEN`
+- 修复方向：`delete` 在实例所属主机上执行时放行（比较本机 IP/hostname 与登记 `target`），
+  或提供显式确认参数（如 `--local` / `--force`）；补 CLI 测试覆盖 `--target` 创建的实例。
+- 验证：修复后按主备实例（`--target` 创建）复测 `myas delete` 流程与残留检查。
