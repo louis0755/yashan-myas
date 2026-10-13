@@ -179,6 +179,18 @@ myas create release-primary 23.4.14.105 --target 192.168.23.4 --host-ip 192.168.
 `[host.yasagent.config] LISTEN_ADDR` 写成主库 IP）失败；yinstall 0.4.7 的 `steps/host-addrs.awk`
 修复后本次真机一次性部署成功，主备两端地址正确。
 
+### 2026-10-13 发布记录（PASS 后的提交与发布）
+
+| 项目 | 内容 |
+| --- | --- |
+| 提交 | myas `b084042`「Release myas 0.3.20」、yinstall `cde5e9d`「Release yinstall 0.4.14」；`git diff --cached --check` 通过，只用 `git add` 指定路径 |
+| Tag / 推送 | `v0.3.20`、`v0.4.14` 已推送；两个仓库 `master` 均为 fast-forward 推送 |
+| GitHub Release | `v0.3.20`（Latest）：<https://github.com/louis0755/yashan-myas/releases/tag/v0.3.20> ；资产 `myas-0.3.20.tar.gz`、`myas-0.3.20.tar.gz.sha256`、`myas-0.3.20-release-notes.html` |
+| 资产校验 | 发布资产 SHA256 `84db1a1b1ca4341171e7a790632f9d4824096d43e8f67f61f44a61c800c44e9e`，与本 release 测试包一致（§10.7） |
+| 发布后冒烟（§10.8） | `.4`（x86_64）、`.5`（aarch64）各一次：用 Release 资产解包部署，`myas 0.3.20`、内置 `yinstall 0.4.14`、`YINSTALL_BIN` 指向 `current`、`myas list` 正常（6 / 8 个实例），均 `PASS` |
+| 说明 | 发布包在最后几轮文档修改之前打制，包内**代码与测试版本一致**；为满足"发布包与测试包 SHA256 一致"未重新打包，包内文档略旧 |
+| 测试库清理 | 三台主机的 `ys18xxx` 测试实例已全部清理（含主备 `ys18003` 与 `.5` 的 7 个历史残留），18xxx 端口无监听；`.13`/`.5` 上的 `/data/yashan/.trash-ys18xxx-20261013/` 为可恢复回收目录，需手工 `rm` 彻底删除 |
+
 ## 测试包
 
 三个 x86_64 包已复制到两台主机 `/tmp`，测试结束未删除，控制端和目标机 SHA256 一致。
